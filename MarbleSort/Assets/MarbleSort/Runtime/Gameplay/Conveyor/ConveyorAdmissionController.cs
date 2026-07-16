@@ -55,6 +55,11 @@ namespace MarbleSort.Gameplay.Conveyor
             return true;
         }
 
+        public void ResetAdmission()
+        {
+            CancelPendingAdmission();
+        }
+
         private void Start()
         {
             if (conveyor == null || conveyor.State == null)
@@ -205,6 +210,11 @@ namespace MarbleSort.Gameplay.Conveyor
         }
 
         private void OnDisable()
+        {
+            CancelPendingAdmission();
+        }
+
+        private void CancelPendingAdmission()
         {
             if (transitionRoutine != null)
             {

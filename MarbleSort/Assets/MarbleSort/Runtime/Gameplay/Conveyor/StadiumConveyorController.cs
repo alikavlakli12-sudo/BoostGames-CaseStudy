@@ -78,6 +78,43 @@ namespace MarbleSort.Gameplay.Conveyor
             return index >= 0 && index < occupants.Length ? occupants[index] : null;
         }
 
+        public bool TryFindClosestOccupiedSlot(
+            Vector3 worldPoint,
+            string colorId,
+            float maximumDistance,
+            out int slotIndex)
+        {
+            slotIndex = -1;
+            if (state == null || string.IsNullOrWhiteSpace(colorId) || maximumDistance <= 0f)
+            {
+                return false;
+            }
+
+            float closestSquaredDistance = maximumDistance * maximumDistance;
+            int count = Mathf.Min(slotCount, slotViews?.Length ?? 0);
+            for (int index = 0; index < count; index++)
+            {
+                ConveyorSlotState slot = state.GetSlot(index);
+                if (slot == null || slot.Status != ConveyorSlotStatus.Occupied ||
+                    !string.Equals(slot.ColorId, colorId, StringComparison.OrdinalIgnoreCase) ||
+                    occupants[index] == null)
+                {
+                    continue;
+                }
+
+                Vector3 offset = slotViews[index].position - worldPoint;
+                offset.z = 0f;
+                float squaredDistance = offset.sqrMagnitude;
+                if (squaredDistance <= closestSquaredDistance)
+                {
+                    closestSquaredDistance = squaredDistance;
+                    slotIndex = index;
+                }
+            }
+
+            return slotIndex >= 0;
+        }
+
         public bool TryReserveSlot(int index, MarbleActor marble)
         {
             if (marble == null || !marble.IsRented ||
@@ -140,6 +177,23 @@ namespace MarbleSort.Gameplay.Conveyor
             occupants[index] = null;
             SlotCleared?.Invoke(index, colorId, marble);
             return true;
+        }
+
+        public void ResetConveyor(MarblePool marblePool)
+        {
+            for (int index = 0; index < occupants.Length; index++)
+            {
+                MarbleActor marble = occupants[index];
+                if (marble != null && marblePool != null && marble.IsRented)
+                {
+                    marblePool.Return(marble);
+                }
+            }
+
+            state = new ConveyorState(slotCount);
+            occupants = new MarbleActor[slotCount];
+            phase = EntranceNormalizedDistance;
+            RefreshPresentation();
         }
 
         public void RefreshPresentation()

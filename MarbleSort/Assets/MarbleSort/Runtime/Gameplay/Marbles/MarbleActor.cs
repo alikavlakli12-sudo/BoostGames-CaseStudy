@@ -7,7 +7,8 @@ namespace MarbleSort.Gameplay.Marbles
         Pooled,
         LoosePhysics,
         ConveyorTransition,
-        Conveyor
+        Conveyor,
+        ReceiverTransition
     }
 
     [DisallowMultipleComponent]
@@ -105,6 +106,25 @@ namespace MarbleSort.Gameplay.Marbles
             }
         }
 
+        internal bool BeginReceiverTransfer()
+        {
+            if (!IsRented || MotionMode != MarbleMotionMode.Conveyor)
+            {
+                return false;
+            }
+
+            MotionMode = MarbleMotionMode.ReceiverTransition;
+            return true;
+        }
+
+        internal void SetReceiverTransferPosition(Vector3 worldPosition)
+        {
+            if (MotionMode == MarbleMotionMode.ReceiverTransition)
+            {
+                transform.position = worldPosition;
+            }
+        }
+
         internal bool ResumeLoosePhysics(Vector3 initialVelocity)
         {
             if (!IsRented || MotionMode != MarbleMotionMode.ConveyorTransition)
@@ -130,8 +150,12 @@ namespace MarbleSort.Gameplay.Marbles
         {
             if (body != null)
             {
-                body.linearVelocity = Vector3.zero;
-                body.angularVelocity = Vector3.zero;
+                if (!body.isKinematic)
+                {
+                    body.linearVelocity = Vector3.zero;
+                    body.angularVelocity = Vector3.zero;
+                }
+
                 body.isKinematic = true;
                 body.detectCollisions = false;
             }

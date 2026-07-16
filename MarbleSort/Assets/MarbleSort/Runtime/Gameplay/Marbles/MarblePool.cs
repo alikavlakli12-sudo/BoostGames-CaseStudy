@@ -76,6 +76,14 @@ namespace MarbleSort.Gameplay.Marbles
             return true;
         }
 
+        public void ReturnAll()
+        {
+            for (int index = active.Count - 1; index >= 0; index--)
+            {
+                ReturnAt(index);
+            }
+        }
+
         private void Awake()
         {
             Prewarm();

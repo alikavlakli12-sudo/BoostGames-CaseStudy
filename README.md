@@ -39,7 +39,8 @@ Unity-generated folders such as `Library`, `Temp`, `Logs`, `Obj`, `Build`, and `
 
 ## Current milestone
 
-Top-grid and conveyor gameplay slice. JSON levels build the runtime grid, selections release nine
-pooled rigidbody marbles, a single-file entrance admits them into distinct logical slots, and one
-controller moves all 24 slots counterclockwise. Receiver collection and end-to-end level flow are
-the next feature milestone.
+Complete core gameplay loop. JSON levels build the top grid and four ordered receiver lanes,
+selections release pooled rigidbody marbles, the single-file entrance fills the deterministic
+24-slot conveyor, and matching active receivers collect exactly three marbles before advancing.
+Completion advances to the next level, Level 5 wraps to Level 1, and exact full-conveyor deadlocks
+offer a clean retry. Five-level production tuning and the expanded editor workflow are next.

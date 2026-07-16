@@ -35,6 +35,8 @@ Status: complete and verified on `codex/conveyor-admission` with EditMode, PlayM
 - Add event-driven completion, deadlock, retry, next-level flow, and five-to-one wraparound.
 - Gate: automated tests cover matching, non-matching, completion, deadlock, and session progression; one full level is playable end to end.
 
+Status: complete and verified on `codex/receivers-level-flow` with EditMode, PlayMode, automatic collection-point, retry, progression, and full Level 1 end-to-end coverage.
+
 ## Day 5 — Five production levels and editor workflow
 
 - Finalize all five configurations and difficulty progression.

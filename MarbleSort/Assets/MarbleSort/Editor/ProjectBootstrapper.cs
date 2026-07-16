@@ -1,8 +1,11 @@
 using System.Collections.Generic;
 using MarbleSort.Core;
 using MarbleSort.Gameplay.Conveyor;
+using MarbleSort.Gameplay.Flow;
 using MarbleSort.Gameplay.Marbles;
+using MarbleSort.Gameplay.Receivers;
 using MarbleSort.Gameplay.TopGrid;
+using MarbleSort.UI;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -48,14 +51,35 @@ namespace MarbleSort.Editor
             GameObject board = new GameObject("Board");
             board.transform.SetParent(root.transform);
             CreateBasin(board.transform, basin, border);
-            CreateTopGrid(board.transform, bootstrap, marblePool, palette, camera);
+            TopGridController topGrid = CreateTopGrid(board.transform, bootstrap, marblePool, palette, camera);
             StadiumConveyorController conveyorController = CreateConveyor(
                 board.transform,
                 bootstrap,
                 conveyor,
                 conveyorSlot);
-            CreateConveyorEntrance(board.transform, conveyorController, border);
-            CreateReceiverPreview(board.transform, conveyorSlot, green, blue, orange, yellow);
+            ConveyorAdmissionController admission = CreateConveyorEntrance(
+                board.transform,
+                conveyorController,
+                border);
+            ReceiverQueueController receivers = CreateReceivers(
+                board.transform,
+                bootstrap,
+                conveyorController,
+                marblePool,
+                palette,
+                conveyorSlot);
+
+            LevelFlowController levelFlow = systems.AddComponent<LevelFlowController>();
+            GameHudView hud = CreateHud(root.transform, levelFlow);
+            levelFlow.Configure(
+                bootstrap,
+                topGrid,
+                conveyorController,
+                admission,
+                receivers,
+                marblePool,
+                hud,
+                1.2f);
 
             CreateVisual(
                 "Background",
@@ -174,7 +198,7 @@ namespace MarbleSort.Editor
                 true);
         }
 
-        private static void CreateTopGrid(
+        private static TopGridController CreateTopGrid(
             Transform parent,
             GameBootstrap bootstrap,
             MarblePool marblePool,
@@ -186,6 +210,7 @@ namespace MarbleSort.Editor
             gridRoot.transform.localPosition = new Vector3(0f, 1.2f, 0f);
             TopGridController controller = gridRoot.AddComponent<TopGridController>();
             controller.Configure(bootstrap, marblePool, palette, camera);
+            return controller;
         }
 
         private static StadiumConveyorController CreateConveyor(
@@ -248,7 +273,7 @@ namespace MarbleSort.Editor
             return controller;
         }
 
-        private static void CreateConveyorEntrance(
+        private static ConveyorAdmissionController CreateConveyorEntrance(
             Transform parent,
             StadiumConveyorController conveyor,
             Material border)
@@ -294,62 +319,40 @@ namespace MarbleSort.Editor
                 border,
                 true);
             admissionGate.GetComponent<Renderer>().enabled = false;
+            return admission;
         }
 
-        private static void CreateReceiverPreview(
+        private static ReceiverQueueController CreateReceivers(
             Transform parent,
-            Material slotMaterial,
-            Material green,
-            Material blue,
-            Material orange,
-            Material yellow)
+            GameBootstrap bootstrap,
+            StadiumConveyorController conveyor,
+            MarblePool marblePool,
+            MarblePalette palette,
+            Material slotMaterial)
         {
-            GameObject receiversRoot = new GameObject("Receiver Queue Preview");
+            GameObject receiversRoot = new GameObject("Runtime Receiver Queues");
             receiversRoot.transform.SetParent(parent);
+            ReceiverQueueController controller = receiversRoot.AddComponent<ReceiverQueueController>();
+            controller.Configure(
+                bootstrap,
+                conveyor,
+                marblePool,
+                palette,
+                slotMaterial,
+                -4f,
+                0.18f,
+                0.18f,
+                0.12f);
+            return controller;
+        }
 
-            Material[][] laneColors =
-            {
-                new[] { green, orange, blue, yellow },
-                new[] { blue, orange, yellow, blue },
-                new[] { blue, green, green, blue },
-                new[] { green, green, yellow, orange }
-            };
-
-            for (int laneIndex = 0; laneIndex < laneColors.Length; laneIndex++)
-            {
-                GameObject lane = new GameObject($"Receiver Lane {laneIndex + 1:00}");
-                lane.transform.SetParent(receiversRoot.transform);
-                lane.transform.localPosition = new Vector3(-2.7f + (laneIndex * 1.8f), -4.65f, 0f);
-
-                for (int boxIndex = 0; boxIndex < laneColors[laneIndex].Length; boxIndex++)
-                {
-                    GameObject box = CreateVisual(
-                        $"Receiver {boxIndex + 1:00}",
-                        PrimitiveType.Cube,
-                        lane.transform,
-                        new Vector3(0f, -(boxIndex * 0.68f), 0f),
-                        new Vector3(1.45f, 0.56f, 0.35f),
-                        Quaternion.identity,
-                        laneColors[laneIndex][boxIndex],
-                        false);
-
-                    if (boxIndex == 0)
-                    {
-                        for (int holeIndex = 0; holeIndex < 3; holeIndex++)
-                        {
-                            CreateVisual(
-                                $"Capacity {holeIndex + 1}",
-                                PrimitiveType.Sphere,
-                                box.transform,
-                                new Vector3(-0.35f + (holeIndex * 0.35f), 0f, -0.22f),
-                                new Vector3(0.13f, 0.13f, 0.06f),
-                                Quaternion.identity,
-                                slotMaterial,
-                                false);
-                        }
-                    }
-                }
-            }
+        private static GameHudView CreateHud(Transform parent, LevelFlowController levelFlow)
+        {
+            GameObject hudObject = new GameObject("Game HUD");
+            hudObject.transform.SetParent(parent, false);
+            GameHudView hud = hudObject.AddComponent<GameHudView>();
+            hud.Configure(levelFlow);
+            return hud;
         }
 
         private static GameObject CreateVisual(

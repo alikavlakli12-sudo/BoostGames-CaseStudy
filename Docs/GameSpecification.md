@@ -26,7 +26,7 @@ This document converts the supplied case-study brief, screenshot, and gameplay r
 - Basin walls and sloped funnel surfaces keep loose marbles contained and guide them to the top-center conveyor entrance.
 - The entrance admits at most one marble into one free logical conveyor slot at a time.
 - A marble stays in the basin if the required entrance slot is unavailable.
-- Loose marbles are returned to the pool after transfer; their conveyor representation is kinematic.
+- The same pooled actor switches from dynamic physics to a kinematic conveyor mode during transfer and returns to the pool after collection.
 
 ## Conveyor
 

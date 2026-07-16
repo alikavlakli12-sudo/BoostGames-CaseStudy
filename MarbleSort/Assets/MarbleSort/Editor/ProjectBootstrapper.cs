@@ -49,7 +49,12 @@ namespace MarbleSort.Editor
             board.transform.SetParent(root.transform);
             CreateBasin(board.transform, basin, border);
             CreateTopGrid(board.transform, bootstrap, marblePool, palette, camera);
-            CreateConveyor(board.transform, conveyor, conveyorSlot);
+            StadiumConveyorController conveyorController = CreateConveyor(
+                board.transform,
+                bootstrap,
+                conveyor,
+                conveyorSlot);
+            CreateConveyorEntrance(board.transform, conveyorController, border);
             CreateReceiverPreview(board.transform, conveyorSlot, green, blue, orange, yellow);
 
             CreateVisual(
@@ -167,17 +172,6 @@ namespace MarbleSort.Editor
                 Quaternion.Euler(0f, 0f, 13f),
                 border,
                 true);
-
-            GameObject entranceGate = CreateVisual(
-                "Temporary Entrance Gate",
-                PrimitiveType.Cube,
-                basinRoot.transform,
-                new Vector3(0f, -1.58f, 0f),
-                new Vector3(0.68f, 0.18f, 0.6f),
-                Quaternion.identity,
-                border,
-                true);
-            entranceGate.GetComponent<Renderer>().enabled = false;
         }
 
         private static void CreateTopGrid(
@@ -194,7 +188,11 @@ namespace MarbleSort.Editor
             controller.Configure(bootstrap, marblePool, palette, camera);
         }
 
-        private static void CreateConveyor(Transform parent, Material conveyor, Material conveyorSlot)
+        private static StadiumConveyorController CreateConveyor(
+            Transform parent,
+            GameBootstrap bootstrap,
+            Material conveyor,
+            Material conveyorSlot)
         {
             GameObject conveyorRoot = new GameObject("Stadium Conveyor");
             conveyorRoot.transform.SetParent(parent);
@@ -246,7 +244,56 @@ namespace MarbleSort.Editor
             }
 
             StadiumConveyorController controller = conveyorRoot.AddComponent<StadiumConveyorController>();
-            controller.Configure(24, 4f, 7f, 0.75f, slotViews.ToArray());
+            controller.Configure(bootstrap, 24, 4f, 7f, 0.75f, slotViews.ToArray());
+            return controller;
+        }
+
+        private static void CreateConveyorEntrance(
+            Transform parent,
+            StadiumConveyorController conveyor,
+            Material border)
+        {
+            GameObject entrance = new GameObject("Conveyor Entrance");
+            entrance.transform.SetParent(parent);
+            entrance.transform.localPosition = new Vector3(0f, -2f, 0f);
+
+            BoxCollider trigger = entrance.AddComponent<BoxCollider>();
+            trigger.isTrigger = true;
+            trigger.size = new Vector3(0.54f, 0.9f, 0.6f);
+
+            ConveyorAdmissionController admission = entrance.AddComponent<ConveyorAdmissionController>();
+            admission.Configure(conveyor, 0.16f, 0.011f, 0.1f);
+
+            CreateVisual(
+                "Left Entrance Guide",
+                PrimitiveType.Cube,
+                entrance.transform,
+                new Vector3(-0.34f, 0f, 0f),
+                new Vector3(0.12f, 0.9f, 0.6f),
+                Quaternion.identity,
+                border,
+                true);
+
+            CreateVisual(
+                "Right Entrance Guide",
+                PrimitiveType.Cube,
+                entrance.transform,
+                new Vector3(0.34f, 0f, 0f),
+                new Vector3(0.12f, 0.9f, 0.6f),
+                Quaternion.identity,
+                border,
+                true);
+
+            GameObject admissionGate = CreateVisual(
+                "Admission Gate",
+                PrimitiveType.Cube,
+                entrance.transform,
+                new Vector3(0f, -0.43f, 0f),
+                new Vector3(0.64f, 0.12f, 0.6f),
+                Quaternion.identity,
+                border,
+                true);
+            admissionGate.GetComponent<Renderer>().enabled = false;
         }
 
         private static void CreateReceiverPreview(

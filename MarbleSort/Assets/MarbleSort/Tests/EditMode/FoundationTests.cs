@@ -125,6 +125,61 @@ namespace MarbleSort.Tests.EditMode
         }
 
         [Test]
+        public void ConveyorState_ReservationPreventsDoubleOccupancy()
+        {
+            ConveyorState state = new ConveyorState(24);
+
+            Assert.That(state.TryReserve(0, "green"), Is.True);
+            Assert.That(state.TryReserve(0, "blue"), Is.False);
+            Assert.That(state.EmptyCount, Is.EqualTo(23));
+            Assert.That(state.ReservedCount, Is.EqualTo(1));
+            Assert.That(state.OccupiedCount, Is.Zero);
+            Assert.That(state.IsFull, Is.False, "A transitioning reservation is not an occupied marble.");
+
+            Assert.That(state.TryCommit(0), Is.True);
+            Assert.That(state.TryCommit(0), Is.False);
+            Assert.That(state.GetSlot(0).Status, Is.EqualTo(ConveyorSlotStatus.Occupied));
+            Assert.That(state.GetSlot(0).ColorId, Is.EqualTo("green"));
+            Assert.That(state.ReservedCount, Is.Zero);
+            Assert.That(state.OccupiedCount, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void ConveyorState_FullConveyorRejectsFurtherReservations()
+        {
+            ConveyorState state = new ConveyorState(24);
+            for (int index = 0; index < state.SlotCount; index++)
+            {
+                Assert.That(state.TryReserve(index, index % 2 == 0 ? "green" : "blue"), Is.True);
+                Assert.That(state.TryCommit(index), Is.True);
+            }
+
+            Assert.That(state.IsFull, Is.True);
+            Assert.That(state.EmptyCount, Is.Zero);
+            Assert.That(state.OccupiedCount, Is.EqualTo(24));
+            Assert.That(state.TryReserve(0, "yellow"), Is.False);
+        }
+
+        [Test]
+        public void StadiumPath_ClosestSlotAdvancesWithoutReorderingIndices()
+        {
+            const int slotCount = 24;
+            float entrance = StadiumPath.GetTopCenterNormalizedDistance(7f, 0.75f);
+
+            int initial = StadiumPath.FindClosestSlotIndex(entrance, slotCount, entrance, out float initialDistance);
+            int afterOneSpacing = StadiumPath.FindClosestSlotIndex(
+                entrance + (1f / slotCount),
+                slotCount,
+                entrance,
+                out float advancedDistance);
+
+            Assert.That(initial, Is.EqualTo(0));
+            Assert.That(initialDistance, Is.Zero.Within(0.0001f));
+            Assert.That(afterOneSpacing, Is.EqualTo(slotCount - 1));
+            Assert.That(advancedDistance, Is.Zero.Within(0.0001f));
+        }
+
+        [Test]
         public void TopGrid_OnlyTheLowestBoxInEachColumnIsExposed()
         {
             TopGridState grid = new TopGridState(CreateStackedTopGrid());

@@ -85,7 +85,8 @@ namespace MarbleSort.Gameplay.Marbles
         {
             for (int index = active.Count - 1; index >= 0; index--)
             {
-                if (active[index].transform.position.y < returnBelowY)
+                if (active[index].MotionMode == MarbleMotionMode.LoosePhysics &&
+                    active[index].transform.position.y < returnBelowY)
                 {
                     ReturnAt(index);
                 }

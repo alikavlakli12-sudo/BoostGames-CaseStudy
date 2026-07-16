@@ -1,36 +1,216 @@
+using System;
+using MarbleSort.Core;
+using MarbleSort.Data;
+using MarbleSort.Gameplay.Marbles;
 using UnityEngine;
 
 namespace MarbleSort.Gameplay.Conveyor
 {
+    [DefaultExecutionOrder(-20)]
     [DisallowMultipleComponent]
     public sealed class StadiumConveyorController : MonoBehaviour
     {
+        [SerializeField] private GameBootstrap bootstrap;
         [SerializeField, Min(1)] private int slotCount = 24;
         [SerializeField, Min(0.01f)] private float unitsPerSecond = 4f;
         [SerializeField, Min(0.01f)] private float straightLength = 7f;
         [SerializeField, Min(0.01f)] private float turnRadius = 0.75f;
         [SerializeField, Range(0f, 1f)] private float phase;
-        [SerializeField] private Transform[] slotViews = new Transform[0];
+        [SerializeField, Min(0f)] private float occupantDepth = -0.16f;
+        [SerializeField] private Transform[] slotViews = Array.Empty<Transform>();
+
+        private MarbleActor[] occupants = Array.Empty<MarbleActor>();
+        private ConveyorState state;
+
+        public event Action<int, string, MarbleActor> SlotOccupied;
+
+        public event Action<int, string, MarbleActor> SlotCleared;
 
         public int SlotCount => slotCount;
 
+        public float Phase => phase;
+
+        public ConveyorState State => state;
+
+        public float EntranceNormalizedDistance =>
+            StadiumPath.GetTopCenterNormalizedDistance(straightLength, turnRadius);
+
         public void Configure(
+            GameBootstrap gameBootstrap,
             int newSlotCount,
             float newUnitsPerSecond,
             float newStraightLength,
             float newTurnRadius,
             Transform[] newSlotViews)
         {
+            bootstrap = gameBootstrap;
+            ApplySettings(
+                newSlotCount,
+                newUnitsPerSecond,
+                newStraightLength,
+                newTurnRadius);
+            slotViews = newSlotViews ?? Array.Empty<Transform>();
+            phase = EntranceNormalizedDistance;
+            RefreshPresentation();
+        }
+
+        public int GetClosestSlotToEntrance(out float normalizedDistance)
+        {
+            return StadiumPath.FindClosestSlotIndex(
+                phase,
+                slotCount,
+                EntranceNormalizedDistance,
+                out normalizedDistance);
+        }
+
+        public Vector3 GetSlotWorldPosition(int index)
+        {
+            if (index < 0 || index >= slotViews.Length || slotViews[index] == null)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+
+            return slotViews[index].position + new Vector3(0f, 0f, occupantDepth);
+        }
+
+        public MarbleActor GetOccupant(int index)
+        {
+            return index >= 0 && index < occupants.Length ? occupants[index] : null;
+        }
+
+        public bool TryReserveSlot(int index, MarbleActor marble)
+        {
+            if (marble == null || !marble.IsRented ||
+                marble.MotionMode != MarbleMotionMode.LoosePhysics ||
+                state == null || ContainsOccupant(marble))
+            {
+                return false;
+            }
+
+            return state.TryReserve(index, marble.ColorId);
+        }
+
+        public bool CommitAdmission(int index, MarbleActor marble)
+        {
+            ConveyorSlotState slot = state?.GetSlot(index);
+            if (slot == null || slot.Status != ConveyorSlotStatus.Reserved ||
+                marble == null || slot.ColorId != marble.ColorId ||
+                index >= occupants.Length || occupants[index] != null)
+            {
+                return false;
+            }
+
+            if (!marble.AttachToConveyor(GetSlotWorldPosition(index)))
+            {
+                return false;
+            }
+
+            if (!state.TryCommit(index))
+            {
+                return false;
+            }
+
+            occupants[index] = marble;
+            SlotOccupied?.Invoke(index, slot.ColorId, marble);
+            return true;
+        }
+
+        public bool CancelReservation(int index)
+        {
+            return state != null && state.TryCancelReservation(index);
+        }
+
+        public bool TryClearSlot(int index, out MarbleActor marble)
+        {
+            marble = GetOccupant(index);
+            ConveyorSlotState slot = state?.GetSlot(index);
+            if (marble == null || slot == null || slot.Status != ConveyorSlotStatus.Occupied)
+            {
+                marble = null;
+                return false;
+            }
+
+            string colorId = slot.ColorId;
+            if (!state.TryClearOccupied(index))
+            {
+                marble = null;
+                return false;
+            }
+
+            occupants[index] = null;
+            SlotCleared?.Invoke(index, colorId, marble);
+            return true;
+        }
+
+        public void RefreshPresentation()
+        {
+            RefreshSlots();
+            RefreshOccupants();
+        }
+
+        private void Awake()
+        {
+            InitializeRuntimeState();
+        }
+
+        private void Start()
+        {
+            ConveyorSettingsData settings = bootstrap != null && bootstrap.Catalog != null
+                ? bootstrap.Catalog.conveyor
+                : null;
+            if (settings != null)
+            {
+                ApplySettings(
+                    settings.slotCount,
+                    settings.unitsPerSecond,
+                    settings.straightLength,
+                    settings.turnRadius);
+            }
+
+            if (slotViews == null || slotViews.Length != slotCount)
+            {
+                Debug.LogError(
+                    $"Conveyor requires exactly {slotCount} configured slot views, but found {slotViews?.Length ?? 0}.",
+                    this);
+                enabled = false;
+                return;
+            }
+
+            InitializeRuntimeState();
+            RefreshPresentation();
+        }
+
+        private void Update()
+        {
+            float perimeter = StadiumPath.GetPerimeter(straightLength, turnRadius);
+            phase = Mathf.Repeat(phase + ((unitsPerSecond / perimeter) * Time.deltaTime), 1f);
+            RefreshPresentation();
+        }
+
+        private void ApplySettings(
+            int newSlotCount,
+            float newUnitsPerSecond,
+            float newStraightLength,
+            float newTurnRadius)
+        {
             slotCount = Mathf.Max(1, newSlotCount);
             unitsPerSecond = Mathf.Max(0.01f, newUnitsPerSecond);
             straightLength = Mathf.Max(0.01f, newStraightLength);
             turnRadius = Mathf.Max(0.01f, newTurnRadius);
-            slotViews = newSlotViews ?? new Transform[0];
-            phase = StadiumPath.GetTopCenterNormalizedDistance(straightLength, turnRadius);
-            RefreshSlots();
         }
 
-        public void RefreshSlots()
+        private void InitializeRuntimeState()
+        {
+            if (state != null && state.SlotCount == slotCount)
+            {
+                return;
+            }
+
+            state = new ConveyorState(slotCount);
+            occupants = new MarbleActor[slotCount];
+        }
+
+        private void RefreshSlots()
         {
             if (slotViews == null || slotViews.Length == 0)
             {
@@ -54,11 +234,30 @@ namespace MarbleSort.Gameplay.Conveyor
             }
         }
 
-        private void Update()
+        private void RefreshOccupants()
         {
-            float perimeter = StadiumPath.GetPerimeter(straightLength, turnRadius);
-            phase = Mathf.Repeat(phase + ((unitsPerSecond / perimeter) * Time.deltaTime), 1f);
-            RefreshSlots();
+            int count = Mathf.Min(occupants.Length, slotViews?.Length ?? 0);
+            for (int index = 0; index < count; index++)
+            {
+                MarbleActor marble = occupants[index];
+                if (marble != null)
+                {
+                    marble.SetConveyorPosition(GetSlotWorldPosition(index));
+                }
+            }
+        }
+
+        private bool ContainsOccupant(MarbleActor marble)
+        {
+            for (int index = 0; index < occupants.Length; index++)
+            {
+                if (occupants[index] == marble)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private void OnValidate()
@@ -67,7 +266,8 @@ namespace MarbleSort.Gameplay.Conveyor
             unitsPerSecond = Mathf.Max(0.01f, unitsPerSecond);
             straightLength = Mathf.Max(0.01f, straightLength);
             turnRadius = Mathf.Max(0.01f, turnRadius);
-            RefreshSlots();
+            occupantDepth = Mathf.Min(0f, occupantDepth);
+            RefreshPresentation();
         }
     }
 }

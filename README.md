@@ -37,7 +37,7 @@ Unity-generated folders such as `Library`, `Temp`, `Logs`, `Obj`, `Build`, and `
 
 ## Current milestone
 
-Top-grid and physical-marble gameplay slice. JSON levels now build the runtime grid, only exposed
-boxes accept input, each selection releases nine pooled rigidbody marbles, and stacked columns
-collapse before the next box becomes selectable. Conveyor admission and receiver collection are the
-next feature milestones.
+Top-grid and conveyor gameplay slice. JSON levels build the runtime grid, selections release nine
+pooled rigidbody marbles, a single-file entrance admits them into distinct logical slots, and one
+controller moves all 24 slots counterclockwise. Receiver collection and end-to-end level flow are
+the next feature milestone.

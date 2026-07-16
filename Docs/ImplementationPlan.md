@@ -15,7 +15,7 @@ Status: complete and verified as the first project milestone.
 
 - Build the runtime grid from JSON.
 - Implement exposed-box input rules, column collapse, and nine-marble release.
-- Add marble pooling, constrained rigidbodies, collision layers, and basin containment.
+- Add marble pooling, constrained rigidbodies, collision configuration, and basin containment.
 - Gate: repeated selections allocate no new marble objects after pool warm-up and never allow a covered box to be selected.
 
 Status: complete and verified on `codex/top-grid-marble-spawning` with EditMode and PlayMode coverage.
@@ -26,6 +26,8 @@ Status: complete and verified on `codex/top-grid-marble-spawning` with EditMode 
 - Implement single-file entrance admission and 24-slot occupancy.
 - Animate deterministic counterclockwise movement along the stadium path.
 - Gate: no slot can contain two marbles, a full conveyor blocks admission, and long runs keep stable ordering.
+
+Status: complete and verified on `codex/conveyor-admission` with EditMode, PlayMode, and portrait simulator coverage.
 
 ## Day 4 — Receivers and level flow
 

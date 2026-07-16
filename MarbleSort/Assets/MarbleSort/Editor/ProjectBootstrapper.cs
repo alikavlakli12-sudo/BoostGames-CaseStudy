@@ -115,6 +115,10 @@ namespace MarbleSort.Editor
             PlayerSettings.companyName = "Case Study";
             PlayerSettings.productName = "Marble Sort";
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
+            PlayerSettings.defaultScreenWidth = 720;
+            PlayerSettings.defaultScreenHeight = 1280;
+            PlayerSettings.defaultIsNativeResolution = false;
+            PlayerSettings.fullScreenMode = FullScreenMode.Windowed;
             PlayerSettings.allowedAutorotateToPortrait = false;
             PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
             PlayerSettings.allowedAutorotateToLandscapeLeft = false;

@@ -9,7 +9,9 @@ namespace MarbleSort.Gameplay.TopGrid
     {
         private readonly Transform[] marbleMarkers = new Transform[MarbleReleasePattern.MarbleCount];
         private Collider inputCollider;
+        private GameObject trayContentRoot;
         private GameObject markerRoot;
+        private Material ballMaterial;
         private bool exposed;
         private bool interactionEnabled;
         private float targetScale = 1f;
@@ -20,12 +22,34 @@ namespace MarbleSort.Gameplay.TopGrid
 
         public string ColorId { get; private set; } = string.Empty;
 
+        public bool TrayVisible => trayContentRoot != null && trayContentRoot.activeSelf;
+
+        public Material BallMaterial => ballMaterial;
+
+        public int VisibleMarkerCount
+        {
+            get
+            {
+                int count = 0;
+                for (int index = 0; index < marbleMarkers.Length; index++)
+                {
+                    if (marbleMarkers[index] != null && marbleMarkers[index].gameObject.activeInHierarchy)
+                    {
+                        count++;
+                    }
+                }
+
+                return count;
+            }
+        }
+
         public void Configure(string boxId, string colorId, Material material)
         {
             BoxId = boxId;
             ColorId = MarblePalette.Normalize(colorId);
             name = $"Top Box - {BoxId}";
             pulsePhase = Mathf.Abs(Animator.StringToHash(BoxId) % 628) * 0.01f;
+            ballMaterial = PresentationMaterialLibrary.GetGlossyBall(material);
 
             GameObject shadow = PresentationMeshFactory.CreateRoundedBox(
                 "Soft Shadow",
@@ -68,8 +92,26 @@ namespace MarbleSort.Gameplay.TopGrid
                 PresentationMaterialLibrary.GetHighlight(material));
             highlight.transform.localPosition = new Vector3(-0.03f, 0.33f, -0.19f);
 
+            trayContentRoot = new GameObject("Exposed Nine-Cup Tray");
+            trayContentRoot.transform.SetParent(transform, false);
+
+            GameObject traySurface = PresentationMeshFactory.CreateNineCupTraySurface(
+                "Nine-Cup Tray Surface",
+                trayContentRoot.transform,
+                0.24f,
+                0.12f,
+                0.39f,
+                0.1f,
+                0.082f,
+                0.022f,
+                material,
+                PresentationMaterialLibrary.GetDarkened(material),
+                PresentationMaterialLibrary.GetCup(material),
+                16);
+            traySurface.transform.localPosition = new Vector3(0f, 0f, -0.195f);
+
             markerRoot = new GameObject("Nine Marble Markers");
-            markerRoot.transform.SetParent(transform, false);
+            markerRoot.transform.SetParent(trayContentRoot.transform, false);
 
             for (int index = 0; index < marbleMarkers.Length; index++)
             {
@@ -77,9 +119,11 @@ namespace MarbleSort.Gameplay.TopGrid
                 marker.name = $"Marker {index + 1:00}";
                 marker.transform.SetParent(markerRoot.transform, false);
                 marker.transform.localPosition = MarbleReleasePattern.GetLocalPosition(index);
-                marker.transform.localScale = Vector3.one * 0.18f;
-                marker.GetComponent<Renderer>().sharedMaterial =
-                    PresentationMaterialLibrary.GetHighlight(material);
+                marker.transform.localScale = Vector3.one * 0.17f;
+                Renderer markerRenderer = marker.GetComponent<Renderer>();
+                markerRenderer.sharedMaterial = ballMaterial;
+                markerRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                markerRenderer.receiveShadows = false;
 
                 Collider markerCollider = marker.GetComponent<Collider>();
                 if (markerCollider != null)
@@ -98,7 +142,7 @@ namespace MarbleSort.Gameplay.TopGrid
         public void SetExposed(bool isExposed)
         {
             exposed = isExposed;
-            markerRoot.SetActive(exposed);
+            trayContentRoot.SetActive(exposed);
             targetScale = exposed ? 1.025f : 0.965f;
             RefreshCollider();
         }

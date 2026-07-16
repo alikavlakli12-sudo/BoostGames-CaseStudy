@@ -13,7 +13,10 @@ namespace MarbleSort.Presentation
         private static readonly Dictionary<StadiumMeshKey, Mesh> StadiumMeshes =
             new Dictionary<StadiumMeshKey, Mesh>();
 
-        public static int CachedMeshCount => RoundedMeshes.Count + StadiumMeshes.Count;
+        private static readonly Dictionary<NineCupMeshKey, Mesh> NineCupMeshes =
+            new Dictionary<NineCupMeshKey, Mesh>();
+
+        public static int CachedMeshCount => RoundedMeshes.Count + StadiumMeshes.Count + NineCupMeshes.Count;
 
         public static GameObject CreateRoundedBox(
             string objectName,
@@ -69,6 +72,40 @@ namespace MarbleSort.Presentation
             return gameObject;
         }
 
+        public static GameObject CreateNineCupTraySurface(
+            string objectName,
+            Transform parent,
+            float spacing,
+            float cellHalfSize,
+            float outerHalfSize,
+            float holeRadius,
+            float innerRadius,
+            float cupDepth,
+            Material faceMaterial,
+            Material wallMaterial,
+            Material bottomMaterial,
+            int segments = 16)
+        {
+            GameObject gameObject = new GameObject(objectName);
+            gameObject.transform.SetParent(parent, false);
+
+            MeshFilter filter = gameObject.AddComponent<MeshFilter>();
+            filter.sharedMesh = GetNineCupTrayMesh(
+                spacing,
+                cellHalfSize,
+                outerHalfSize,
+                holeRadius,
+                innerRadius,
+                cupDepth,
+                segments);
+
+            MeshRenderer renderer = gameObject.AddComponent<MeshRenderer>();
+            renderer.sharedMaterials = new[] { faceMaterial, wallMaterial, bottomMaterial };
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            return gameObject;
+        }
+
         public static Mesh GetRoundedBoxMesh(
             float width,
             float height,
@@ -121,6 +158,50 @@ namespace MarbleSort.Presentation
             mesh.name = $"Stadium Ribbon {straightLength:0.###}-{turnRadius:0.###}-{halfWidth:0.###}";
             mesh.hideFlags = HideFlags.DontSave;
             StadiumMeshes.Add(key, mesh);
+            return mesh;
+        }
+
+        public static Mesh GetNineCupTrayMesh(
+            float spacing,
+            float cellHalfSize,
+            float outerHalfSize,
+            float holeRadius,
+            float innerRadius,
+            float cupDepth,
+            int segments = 16)
+        {
+            spacing = Mathf.Max(0.05f, spacing);
+            cellHalfSize = Mathf.Max(spacing * 0.5f, cellHalfSize);
+            outerHalfSize = Mathf.Max((spacing + cellHalfSize) + 0.01f, outerHalfSize);
+            holeRadius = Mathf.Clamp(holeRadius, 0.01f, cellHalfSize * 0.92f);
+            innerRadius = Mathf.Clamp(innerRadius, 0.005f, holeRadius - 0.005f);
+            cupDepth = Mathf.Max(0.001f, cupDepth);
+            segments = Mathf.Clamp(segments, 8, 32);
+
+            NineCupMeshKey key = new NineCupMeshKey(
+                spacing,
+                cellHalfSize,
+                outerHalfSize,
+                holeRadius,
+                innerRadius,
+                cupDepth,
+                segments);
+            if (NineCupMeshes.TryGetValue(key, out Mesh cached))
+            {
+                return cached;
+            }
+
+            Mesh mesh = BuildNineCupTrayMesh(
+                spacing,
+                cellHalfSize,
+                outerHalfSize,
+                holeRadius,
+                innerRadius,
+                cupDepth,
+                segments);
+            mesh.name = $"Nine Cup Tray {spacing:0.###}-{holeRadius:0.###}-{cupDepth:0.###}";
+            mesh.hideFlags = HideFlags.DontSave;
+            NineCupMeshes.Add(key, mesh);
             return mesh;
         }
 
@@ -275,6 +356,260 @@ namespace MarbleSort.Presentation
             return mesh;
         }
 
+        private static Mesh BuildNineCupTrayMesh(
+            float spacing,
+            float cellHalfSize,
+            float outerHalfSize,
+            float holeRadius,
+            float innerRadius,
+            float cupDepth,
+            int segments)
+        {
+            List<Vector3> vertices = new List<Vector3>(720);
+            List<Vector2> uvs = new List<Vector2>(720);
+            List<int> faceTriangles = new List<int>(900);
+            List<int> wallTriangles = new List<int>(900);
+            List<int> bottomTriangles = new List<int>(450);
+            float gridHalfSize = spacing + cellHalfSize;
+
+            for (int row = 0; row < 3; row++)
+            {
+                for (int column = 0; column < 3; column++)
+                {
+                    Vector2 center = new Vector2(
+                        (column - 1) * spacing,
+                        (1 - row) * spacing);
+                    AddCellFaceWithCircularOpening(
+                        vertices,
+                        uvs,
+                        faceTriangles,
+                        center,
+                        cellHalfSize,
+                        holeRadius,
+                        outerHalfSize,
+                        segments);
+                    AddCupWall(
+                        vertices,
+                        uvs,
+                        wallTriangles,
+                        center,
+                        holeRadius,
+                        innerRadius,
+                        cupDepth,
+                        outerHalfSize,
+                        segments);
+                    AddCupBottom(
+                        vertices,
+                        uvs,
+                        bottomTriangles,
+                        center,
+                        innerRadius,
+                        cupDepth,
+                        outerHalfSize,
+                        segments);
+                }
+            }
+
+            AddFrontQuad(
+                vertices,
+                uvs,
+                faceTriangles,
+                new Vector2(-outerHalfSize, gridHalfSize),
+                new Vector2(outerHalfSize, gridHalfSize),
+                new Vector2(outerHalfSize, outerHalfSize),
+                new Vector2(-outerHalfSize, outerHalfSize),
+                outerHalfSize);
+            AddFrontQuad(
+                vertices,
+                uvs,
+                faceTriangles,
+                new Vector2(-outerHalfSize, -outerHalfSize),
+                new Vector2(outerHalfSize, -outerHalfSize),
+                new Vector2(outerHalfSize, -gridHalfSize),
+                new Vector2(-outerHalfSize, -gridHalfSize),
+                outerHalfSize);
+            AddFrontQuad(
+                vertices,
+                uvs,
+                faceTriangles,
+                new Vector2(-outerHalfSize, -gridHalfSize),
+                new Vector2(-gridHalfSize, -gridHalfSize),
+                new Vector2(-gridHalfSize, gridHalfSize),
+                new Vector2(-outerHalfSize, gridHalfSize),
+                outerHalfSize);
+            AddFrontQuad(
+                vertices,
+                uvs,
+                faceTriangles,
+                new Vector2(gridHalfSize, -gridHalfSize),
+                new Vector2(outerHalfSize, -gridHalfSize),
+                new Vector2(outerHalfSize, gridHalfSize),
+                new Vector2(gridHalfSize, gridHalfSize),
+                outerHalfSize);
+
+            Mesh mesh = new Mesh
+            {
+                vertices = vertices.ToArray(),
+                uv = uvs.ToArray(),
+                subMeshCount = 3
+            };
+            mesh.SetTriangles(faceTriangles, 0, false);
+            mesh.SetTriangles(wallTriangles, 1, false);
+            mesh.SetTriangles(bottomTriangles, 2, false);
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        private static void AddCellFaceWithCircularOpening(
+            List<Vector3> vertices,
+            List<Vector2> uvs,
+            List<int> triangles,
+            Vector2 center,
+            float cellHalfSize,
+            float holeRadius,
+            float uvHalfSize,
+            int segments)
+        {
+            int start = vertices.Count;
+            for (int segment = 0; segment < segments; segment++)
+            {
+                float angle = (segment / (float)segments) * Mathf.PI * 2f;
+                Vector2 direction = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
+                float perimeterScale = cellHalfSize /
+                                       Mathf.Max(Mathf.Abs(direction.x), Mathf.Abs(direction.y));
+                AddTrayVertex(vertices, uvs, center + (direction * perimeterScale), 0f, uvHalfSize);
+                AddTrayVertex(vertices, uvs, center + (direction * holeRadius), 0f, uvHalfSize);
+            }
+
+            for (int segment = 0; segment < segments; segment++)
+            {
+                int next = (segment + 1) % segments;
+                int outerCurrent = start + (segment * 2);
+                int innerCurrent = outerCurrent + 1;
+                int outerNext = start + (next * 2);
+                int innerNext = outerNext + 1;
+                AddFrontQuadTriangles(
+                    triangles,
+                    outerCurrent,
+                    outerNext,
+                    innerNext,
+                    innerCurrent);
+            }
+        }
+
+        private static void AddCupWall(
+            List<Vector3> vertices,
+            List<Vector2> uvs,
+            List<int> triangles,
+            Vector2 center,
+            float outerRadius,
+            float innerRadius,
+            float depth,
+            float uvHalfSize,
+            int segments)
+        {
+            int start = vertices.Count;
+            for (int segment = 0; segment < segments; segment++)
+            {
+                float angle = (segment / (float)segments) * Mathf.PI * 2f;
+                Vector2 direction = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
+                AddTrayVertex(vertices, uvs, center + (direction * outerRadius), 0f, uvHalfSize);
+                AddTrayVertex(vertices, uvs, center + (direction * innerRadius), depth, uvHalfSize);
+            }
+
+            for (int segment = 0; segment < segments; segment++)
+            {
+                int next = (segment + 1) % segments;
+                int outerCurrent = start + (segment * 2);
+                int innerCurrent = outerCurrent + 1;
+                int outerNext = start + (next * 2);
+                int innerNext = outerNext + 1;
+                AddFrontQuadTriangles(
+                    triangles,
+                    outerCurrent,
+                    outerNext,
+                    innerNext,
+                    innerCurrent);
+            }
+        }
+
+        private static void AddCupBottom(
+            List<Vector3> vertices,
+            List<Vector2> uvs,
+            List<int> triangles,
+            Vector2 center,
+            float radius,
+            float depth,
+            float uvHalfSize,
+            int segments)
+        {
+            int centerIndex = vertices.Count;
+            AddTrayVertex(vertices, uvs, center, depth, uvHalfSize);
+            int outlineStart = vertices.Count;
+            for (int segment = 0; segment < segments; segment++)
+            {
+                float angle = (segment / (float)segments) * Mathf.PI * 2f;
+                Vector2 direction = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
+                AddTrayVertex(vertices, uvs, center + (direction * radius), depth, uvHalfSize);
+            }
+
+            for (int segment = 0; segment < segments; segment++)
+            {
+                int next = (segment + 1) % segments;
+                triangles.Add(centerIndex);
+                triangles.Add(outlineStart + next);
+                triangles.Add(outlineStart + segment);
+            }
+        }
+
+        private static void AddFrontQuad(
+            List<Vector3> vertices,
+            List<Vector2> uvs,
+            List<int> triangles,
+            Vector2 bottomLeft,
+            Vector2 bottomRight,
+            Vector2 topRight,
+            Vector2 topLeft,
+            float uvHalfSize)
+        {
+            int start = vertices.Count;
+            AddTrayVertex(vertices, uvs, bottomLeft, 0f, uvHalfSize);
+            AddTrayVertex(vertices, uvs, bottomRight, 0f, uvHalfSize);
+            AddTrayVertex(vertices, uvs, topRight, 0f, uvHalfSize);
+            AddTrayVertex(vertices, uvs, topLeft, 0f, uvHalfSize);
+            AddFrontQuadTriangles(triangles, start, start + 1, start + 2, start + 3);
+        }
+
+        private static void AddFrontQuadTriangles(
+            List<int> triangles,
+            int bottomLeft,
+            int bottomRight,
+            int topRight,
+            int topLeft)
+        {
+            triangles.Add(bottomLeft);
+            triangles.Add(topRight);
+            triangles.Add(bottomRight);
+            triangles.Add(bottomLeft);
+            triangles.Add(topLeft);
+            triangles.Add(topRight);
+        }
+
+        private static void AddTrayVertex(
+            List<Vector3> vertices,
+            List<Vector2> uvs,
+            Vector2 point,
+            float z,
+            float halfSize)
+        {
+            vertices.Add(new Vector3(point.x, point.y, z));
+            float size = halfSize * 2f;
+            uvs.Add(new Vector2(
+                (point.x + halfSize) / size,
+                (point.y + halfSize) / size));
+        }
+
         private readonly struct RoundedMeshKey : IEquatable<RoundedMeshKey>
         {
             private readonly int width;
@@ -350,6 +685,65 @@ namespace MarbleSort.Presentation
                     hashCode = (hashCode * 397) ^ radius;
                     hashCode = (hashCode * 397) ^ width;
                     return (hashCode * 397) ^ samples;
+                }
+            }
+        }
+
+        private readonly struct NineCupMeshKey : IEquatable<NineCupMeshKey>
+        {
+            private readonly int spacing;
+            private readonly int cellHalfSize;
+            private readonly int outerHalfSize;
+            private readonly int holeRadius;
+            private readonly int innerRadius;
+            private readonly int depth;
+            private readonly int segments;
+
+            public NineCupMeshKey(
+                float spacing,
+                float cellHalfSize,
+                float outerHalfSize,
+                float holeRadius,
+                float innerRadius,
+                float depth,
+                int segments)
+            {
+                this.spacing = Quantize(spacing);
+                this.cellHalfSize = Quantize(cellHalfSize);
+                this.outerHalfSize = Quantize(outerHalfSize);
+                this.holeRadius = Quantize(holeRadius);
+                this.innerRadius = Quantize(innerRadius);
+                this.depth = Quantize(depth);
+                this.segments = segments;
+            }
+
+            public bool Equals(NineCupMeshKey other)
+            {
+                return spacing == other.spacing &&
+                       cellHalfSize == other.cellHalfSize &&
+                       outerHalfSize == other.outerHalfSize &&
+                       holeRadius == other.holeRadius &&
+                       innerRadius == other.innerRadius &&
+                       depth == other.depth &&
+                       segments == other.segments;
+            }
+
+            public override bool Equals(object obj)
+            {
+                return obj is NineCupMeshKey other && Equals(other);
+            }
+
+            public override int GetHashCode()
+            {
+                unchecked
+                {
+                    int hashCode = spacing;
+                    hashCode = (hashCode * 397) ^ cellHalfSize;
+                    hashCode = (hashCode * 397) ^ outerHalfSize;
+                    hashCode = (hashCode * 397) ^ holeRadius;
+                    hashCode = (hashCode * 397) ^ innerRadius;
+                    hashCode = (hashCode * 397) ^ depth;
+                    return (hashCode * 397) ^ segments;
                 }
             }
         }

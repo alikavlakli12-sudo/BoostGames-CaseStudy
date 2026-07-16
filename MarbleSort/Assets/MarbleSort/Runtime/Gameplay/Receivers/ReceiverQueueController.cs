@@ -235,7 +235,9 @@ namespace MarbleSort.Gameplay.Receivers
             }
             else
             {
-                boxView.SetFilledCount(result.FillCount, palette?.GetMaterial(result.ColorId));
+                boxView.SetFilledCount(
+                    result.FillCount,
+                    PresentationMaterialLibrary.GetGlossyBall(palette?.GetMaterial(result.ColorId)));
                 yield return AnimateBoxPulse(boxView.Root.transform, false);
             }
 
@@ -348,7 +350,9 @@ namespace MarbleSort.Gameplay.Receivers
             }
 
             ReceiverBoxRuntimeView view = new ReceiverBoxRuntimeView(root, body, markers, markerTransforms);
-            view.SetFilledCount(box.FillCount, palette?.GetMaterial(box.ColorId));
+            view.SetFilledCount(
+                box.FillCount,
+                PresentationMaterialLibrary.GetGlossyBall(palette?.GetMaterial(box.ColorId)));
             return view;
         }
 

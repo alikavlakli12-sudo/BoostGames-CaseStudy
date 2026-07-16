@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using MarbleSort.Presentation;
 using UnityEngine;
 
 namespace MarbleSort.Gameplay.Marbles
@@ -53,7 +54,9 @@ namespace MarbleSort.Gameplay.Marbles
             Prewarm();
 
             MarbleActor marble = available.Count > 0 ? available.Pop() : CreateMarble();
-            Material material = palette == null ? null : palette.GetMaterial(colorId);
+            Material material = palette == null
+                ? null
+                : PresentationMaterialLibrary.GetGlossyBall(palette.GetMaterial(colorId));
             marble.Activate(colorId, material, position, initialVelocity);
             active.Add(marble);
             return marble;

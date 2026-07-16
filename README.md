@@ -107,7 +107,7 @@ Unity-generated folders such as `Library`, `Temp`, `Logs`, `Obj`, `Build`, and `
 
 Milestones 1–6 and Delivery QA are complete and merged. The project is in its final polish pass,
 focused on first-play guidance, interaction readability, live progress feedback, and regression
-verification. The automated 12-check readiness gate, 35 EditMode tests, 17 PlayMode tests,
+verification. The automated 12-check readiness gate, 37 EditMode tests, 18 PlayMode tests,
 reproducible smoke build, reviewer setup, and explicit known limitations remain the submission
 baseline. Final submission/tagging is intentionally held until this polish branch passes the full
 QA gate and review.

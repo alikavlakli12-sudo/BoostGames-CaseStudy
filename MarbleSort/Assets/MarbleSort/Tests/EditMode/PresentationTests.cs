@@ -38,6 +38,69 @@ namespace MarbleSort.Tests.EditMode
         }
 
         [Test]
+        public void NineCupTrayMesh_IsCachedAndBuildsExactlyNineRecesses()
+        {
+            const int segments = 16;
+            Mesh first = PresentationMeshFactory.GetNineCupTrayMesh(
+                0.24f,
+                0.12f,
+                0.39f,
+                0.1f,
+                0.082f,
+                0.022f,
+                segments);
+            Mesh second = PresentationMeshFactory.GetNineCupTrayMesh(
+                0.24f,
+                0.12f,
+                0.39f,
+                0.1f,
+                0.082f,
+                0.022f,
+                segments);
+
+            Assert.That(second, Is.SameAs(first));
+            Assert.That(first.subMeshCount, Is.EqualTo(3));
+            Assert.That(first.bounds.size.x, Is.EqualTo(0.78f).Within(0.001f));
+            Assert.That(first.bounds.size.y, Is.EqualTo(0.78f).Within(0.001f));
+            Assert.That(first.bounds.size.z, Is.EqualTo(0.022f).Within(0.001f));
+            Assert.That(first.GetTriangles(1).Length, Is.EqualTo(9 * segments * 6));
+            Assert.That(first.GetTriangles(2).Length, Is.EqualTo(9 * segments * 3));
+        }
+
+        [Test]
+        public void GlossyBallMaterials_AreCachedAndConsistentAcrossProductionColors()
+        {
+            string[] materialPaths =
+            {
+                "Assets/MarbleSort/Art/Materials/Green.mat",
+                "Assets/MarbleSort/Art/Materials/Blue.mat",
+                "Assets/MarbleSort/Art/Materials/Orange.mat",
+                "Assets/MarbleSort/Art/Materials/Yellow.mat"
+            };
+
+            for (int index = 0; index < materialPaths.Length; index++)
+            {
+                Material source = AssetDatabase.LoadAssetAtPath<Material>(materialPaths[index]);
+                Assert.That(source, Is.Not.Null);
+
+                Material first = PresentationMaterialLibrary.GetGlossyBall(source);
+                Material second = PresentationMaterialLibrary.GetGlossyBall(source);
+                Material cup = PresentationMaterialLibrary.GetCup(source);
+
+                Assert.That(second, Is.SameAs(first));
+                Assert.That(first, Is.Not.SameAs(source));
+                Assert.That(first.color.r, Is.EqualTo(source.color.r).Within(0.0001f));
+                Assert.That(first.color.g, Is.EqualTo(source.color.g).Within(0.0001f));
+                Assert.That(first.color.b, Is.EqualTo(source.color.b).Within(0.0001f));
+                Assert.That(first.color.a, Is.EqualTo(source.color.a).Within(0.0001f));
+                Assert.That(first.enableInstancing, Is.True);
+                Assert.That(first.GetFloat("_Glossiness"), Is.EqualTo(0.72f).Within(0.001f));
+                Assert.That(first.GetFloat("_Metallic"), Is.Zero.Within(0.001f));
+                Assert.That(cup.color.grayscale, Is.LessThan(source.color.grayscale));
+            }
+        }
+
+        [Test]
         public void ProceduralAudioBank_PrewarmsEveryRequiredFeedbackClip()
         {
             ProceduralAudioBank bank = new ProceduralAudioBank();

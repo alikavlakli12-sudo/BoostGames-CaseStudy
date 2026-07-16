@@ -57,8 +57,8 @@ The optional smoke player is written to `MarbleSort/Builds/QA/` and remains igno
 Final local verification on 2026-07-16:
 
 - Delivery readiness: 12/12 checks passed.
-- EditMode: 35/35 tests passed.
-- PlayMode: 17/17 tests passed.
+- EditMode: 37/37 tests passed.
+- PlayMode: 18/18 tests passed.
 - Desktop smoke build: succeeded as a portrait-windowed 64-bit universal macOS application
   (Apple Silicon and Intel).
 - Player boot: initialized Unity `6000.3.10f1`, PhysX, the Main scene, and all 5 validated levels

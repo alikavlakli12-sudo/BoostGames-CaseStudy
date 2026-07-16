@@ -10,16 +10,21 @@ existing runtime events. The visual scene can still be rebuilt deterministically
   1024×1536, compressed, clamped, and without mipmaps for the fixed portrait camera.
 - Its creation method, final prompt, and licensing note are recorded in
   [AssetProvenance.md](AssetProvenance.md).
-- Rounded top boxes, receiver boxes, basin panels, and the conveyor use cached procedural meshes.
+- Rounded top boxes, basin panels, and the conveyor use cached procedural meshes.
   Generated mesh objects are marked `DontSave`; serialized mesh specifications recreate them on
   load without duplicating mesh data inside the scene.
 - Exposed upper boxes replace the closed-box renderers with a slightly tilted molded-plastic tray:
   a soft shadow, visible lower side, highlighted rounded rim, clean face, nine inset-looking wells,
   and nine glossy balls. Covered boxes keep a clean closed face until they become selectable,
   matching the reference game's interaction language.
-- Tray markers, pooled physics balls, conveyor occupants, and filled receiver markers use four
-  cached color-specific glossy materials. The geometry and materials remain shared across levels;
-  no preview raster is used at runtime.
+- Receiver boxes use four color-specific transparent renders of the approved molded 1×3 artwork.
+  Each render contains the rounded highlight rim, deep color-matched wells, and visible lower side.
+  Three independent glossy-ball sprite layers preserve the receiver's 0–3 fill states and transfer
+  targets instead of flattening gameplay into a single filled image. The importer keeps alpha,
+  disables mipmaps, clamps edges, and caps source textures at 1024 px for the mobile prototype.
+- Top-grid tray markers, pooled physics balls, and conveyor occupants keep using four cached
+  color-specific glossy materials. Receiver textures and sprites are cached once and reused by all
+  levels.
 - One continuous stadium-ribbon mesh replaces the three-piece conveyor blockout.
 - Shared materials, instancing, and disabled real-time shadows keep the soft outlined style
   inexpensive. Highlights and shadows are explicit lightweight geometry.
@@ -54,6 +59,7 @@ existing runtime events. The visual scene can still be rebuilt deterministically
 | Feedback particles | One system, maximum 160 live particles |
 | Feedback audio | One `AudioSource`, six prewarmed procedural clips |
 | Presentation meshes | Shared cache keyed by dimensions; repeated level loads do not grow it |
+| Receiver artwork | Eight cached alpha textures; no mipmaps; 1024 px maximum import size |
 | Background texture | 1024×1536, compressed, no mipmaps |
 | Target frame rate | 60 FPS |
 | Runtime diagnostics | Allocation-free rolling frame probe with FPS, worst-frame, and GC counters |

@@ -23,3 +23,26 @@ Final prompt:
 > Constraints: background only; no text, no logo, no icons, no characters, no marbles, no boxes,
 > no UI panels, no watermark; no sharp details; low visual noise; suitable behind high-contrast
 > game pieces.
+
+## Receiver trays and balls
+
+- Project assets: `MarbleSort/Assets/MarbleSort/Resources/Presentation/Receivers/Receiver*.png`
+- Created: 2026-07-16
+- Creation mode: built-in image generation followed by deterministic chroma-key removal
+- Ownership/licensing note: generated specifically for this case-study prototype from the approved
+  receiver preview; no third-party game artwork, logos, characters, or interface elements were
+  used.
+- Runtime treatment: four transparent empty 1×3 molded receiver bases and four transparent glossy
+  ball layers. Unity crops their transparent generation canvas through normalized sprite metadata,
+  so the approved lighting and molded depth are preserved while the three fill slots remain
+  independent.
+
+Prompt brief:
+
+> Create a single premium casual-mobile-game receiver asset on a solid magenta chroma-key
+> background. The receiver is a horizontal 1×3 molded plastic tray facing the camera with a slight
+> top-down near-front view, broad clean face, rounded glossy highlight rim, three deep circular
+> color-matched wells, visible darker lower side, soft studio lighting from the upper left, no
+> text, no logo, no extra objects, and no external cast shadow. Produce matching green, blue,
+> orange, and yellow variants. Create each matching glossy ball separately with the same upper-left
+> oval highlight, rounded shading, centered framing, and no cast shadow.

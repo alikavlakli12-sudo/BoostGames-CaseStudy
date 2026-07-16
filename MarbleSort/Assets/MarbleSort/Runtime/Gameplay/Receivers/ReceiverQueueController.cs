@@ -235,9 +235,7 @@ namespace MarbleSort.Gameplay.Receivers
             }
             else
             {
-                boxView.SetFilledCount(
-                    result.FillCount,
-                    PresentationMaterialLibrary.GetGlossyBall(palette?.GetMaterial(result.ColorId)));
+                boxView.SetFilledCount(result.FillCount);
                 yield return AnimateBoxPulse(boxView.Root.transform, false);
             }
 
@@ -289,71 +287,69 @@ namespace MarbleSort.Gameplay.Receivers
             root.transform.localPosition = localPosition;
             root.transform.localScale = Vector3.one * (active ? 1f : 0.94f);
 
-            GameObject shadow = PresentationMeshFactory.CreateRoundedBox(
-                "Soft Shadow",
-                root.transform,
-                1.54f,
-                0.64f,
-                0.2f,
-                0.16f,
-                PresentationMaterialLibrary.GetSoftShadow());
-            shadow.transform.localPosition = new Vector3(0.04f, -0.045f, 0.15f);
+            if (!ReceiverArtworkLibrary.TryGet(box.ColorId, out ReceiverArtwork artwork))
+            {
+                DestroyObject(root);
+                throw new InvalidOperationException($"Receiver artwork is unavailable for color '{box.ColorId}'.");
+            }
 
-            Material colorMaterial = palette?.GetMaterial(box.ColorId);
-            GameObject outline = PresentationMeshFactory.CreateRoundedBox(
-                "Color Outline",
+            GameObject body = CreateSpriteVisual(
+                "Hyper Realistic Receiver",
                 root.transform,
-                1.5f,
-                0.62f,
-                0.28f,
-                0.16f,
-                PresentationMaterialLibrary.GetDarkened(colorMaterial));
-            outline.transform.localPosition = new Vector3(0f, -0.015f, 0.06f);
+                artwork.Tray,
+                new Vector3(0f, 0f, -0.2f),
+                1.56f,
+                20);
 
-            GameObject body = PresentationMeshFactory.CreateRoundedBox(
-                "Box",
-                root.transform,
-                1.42f,
-                0.54f,
-                0.3f,
-                0.14f,
-                colorMaterial);
-
-            GameObject highlight = PresentationMeshFactory.CreateRoundedBox(
-                "Top Highlight",
-                root.transform,
-                1.08f,
-                0.055f,
-                0.02f,
-                0.025f,
-                PresentationMaterialLibrary.GetHighlight(colorMaterial));
-            highlight.transform.localPosition = new Vector3(-0.04f, 0.19f, -0.17f);
-
-            Renderer[] markers = Array.Empty<Renderer>();
+            GameObject[] markers = Array.Empty<GameObject>();
             Transform[] markerTransforms = Array.Empty<Transform>();
             if (active)
             {
-                markers = new Renderer[ReceiverBoxState.Capacity];
+                markers = new GameObject[ReceiverBoxState.Capacity];
                 markerTransforms = new Transform[ReceiverBoxState.Capacity];
                 for (int index = 0; index < ReceiverBoxState.Capacity; index++)
                 {
-                    GameObject marker = CreatePrimitive(
-                        $"Capacity {index + 1}",
-                        PrimitiveType.Sphere,
+                    GameObject marker = CreateSpriteVisual(
+                        $"Glossy Receiver Ball {index + 1}",
                         root.transform,
-                        new Vector3(-0.38f + (index * 0.38f), -0.015f, -0.2f),
-                        new Vector3(0.16f, 0.16f, 0.075f),
-                        emptyCapacityMaterial);
-                    markers[index] = marker.GetComponent<Renderer>();
+                        artwork.Ball,
+                        new Vector3(-0.46f + (index * 0.46f), 0.005f, -0.24f),
+                        0.365f,
+                        21,
+                        fitByHeight: true);
+                    markers[index] = marker;
                     markerTransforms[index] = marker.transform;
                 }
             }
 
             ReceiverBoxRuntimeView view = new ReceiverBoxRuntimeView(root, body, markers, markerTransforms);
-            view.SetFilledCount(
-                box.FillCount,
-                PresentationMaterialLibrary.GetGlossyBall(palette?.GetMaterial(box.ColorId)));
+            view.SetFilledCount(box.FillCount);
             return view;
+        }
+
+        private static GameObject CreateSpriteVisual(
+            string objectName,
+            Transform parent,
+            Sprite sprite,
+            Vector3 localPosition,
+            float targetSize,
+            int sortingOrder,
+            bool fitByHeight = false)
+        {
+            GameObject visual = new GameObject(objectName);
+            visual.transform.SetParent(parent, false);
+            visual.transform.localPosition = localPosition;
+
+            SpriteRenderer spriteRenderer = visual.AddComponent<SpriteRenderer>();
+            spriteRenderer.sprite = sprite;
+            spriteRenderer.color = Color.white;
+            spriteRenderer.sortingOrder = sortingOrder;
+
+            Vector2 spriteSize = sprite.bounds.size;
+            float sourceSize = fitByHeight ? spriteSize.y : spriteSize.x;
+            float scale = sourceSize <= Mathf.Epsilon ? 1f : targetSize / sourceSize;
+            visual.transform.localScale = new Vector3(scale, scale, 1f);
+            return visual;
         }
 
         private static IEnumerator AnimateBoxPulse(Transform target, bool completing)
@@ -388,30 +384,6 @@ namespace MarbleSort.Gameplay.Receivers
             }
 
             target.localScale = endScale;
-        }
-
-        private static GameObject CreatePrimitive(
-            string objectName,
-            PrimitiveType primitiveType,
-            Transform parent,
-            Vector3 localPosition,
-            Vector3 localScale,
-            Material material)
-        {
-            GameObject gameObject = GameObject.CreatePrimitive(primitiveType);
-            gameObject.name = objectName;
-            gameObject.transform.SetParent(parent, false);
-            gameObject.transform.localPosition = localPosition;
-            gameObject.transform.localScale = localScale;
-            gameObject.GetComponent<Renderer>().sharedMaterial = material;
-
-            Collider collider = gameObject.GetComponent<Collider>();
-            if (collider != null)
-            {
-                Destroy(collider);
-            }
-
-            return gameObject;
         }
 
         private void CancelPendingTransfers()
@@ -491,13 +463,13 @@ namespace MarbleSort.Gameplay.Receivers
 
         private sealed class ReceiverBoxRuntimeView
         {
-            private readonly Renderer[] capacityMarkers;
+            private readonly GameObject[] capacityMarkers;
             private readonly Transform[] capacityTransforms;
 
             public ReceiverBoxRuntimeView(
                 GameObject root,
                 GameObject body,
-                Renderer[] markers,
+                GameObject[] markers,
                 Transform[] markerTransforms)
             {
                 Root = root;
@@ -520,12 +492,12 @@ namespace MarbleSort.Gameplay.Receivers
                 return capacityTransforms[index].position;
             }
 
-            public void SetFilledCount(int fillCount, Material filledMaterial)
+            public void SetFilledCount(int fillCount)
             {
-                int count = Mathf.Min(fillCount, capacityMarkers.Length);
-                for (int index = 0; index < count; index++)
+                int count = Mathf.Clamp(fillCount, 0, capacityMarkers.Length);
+                for (int index = 0; index < capacityMarkers.Length; index++)
                 {
-                    capacityMarkers[index].sharedMaterial = filledMaterial;
+                    capacityMarkers[index].SetActive(index < count);
                 }
             }
         }

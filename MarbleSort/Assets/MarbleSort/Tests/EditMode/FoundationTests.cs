@@ -8,6 +8,7 @@ using MarbleSort.Session;
 using MarbleSort.Validation;
 using NUnit.Framework;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 
 namespace MarbleSort.Tests.EditMode
@@ -29,6 +30,16 @@ namespace MarbleSort.Tests.EditMode
                 report.HasErrors,
                 Is.False,
                 BuildIssueMessage(report));
+        }
+
+        [Test]
+        public void PlayModeStartScene_IsAlwaysMain()
+        {
+            SceneAsset mainScene = AssetDatabase.LoadAssetAtPath<SceneAsset>(
+                "Assets/MarbleSort/Scenes/Main.unity");
+
+            Assert.That(mainScene, Is.Not.Null);
+            Assert.That(EditorSceneManager.playModeStartScene, Is.EqualTo(mainScene));
         }
 
         [Test]

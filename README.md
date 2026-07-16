@@ -10,6 +10,8 @@ A polished, data-driven mobile puzzle prototype created for the Boost Games Deve
 
 Do not open or upgrade the project with another Unity version. The required editor version is part of the evaluation criteria.
 
+Pressing Play from any open editor scene automatically starts `Assets/MarbleSort/Scenes/Main.unity`.
+
 ## Prototype pillars
 
 - Top-box grid where each selected box releases exactly nine matching marbles

@@ -3,7 +3,8 @@
 ## Branches
 
 - `main` must always represent a compiling, reviewable milestone.
-- Feature work uses short-lived branches prefixed with `codex/`.
+- Feature work uses short-lived, descriptive branches such as `presentation-performance` and
+  `delivery-qa`.
 - Do not commit Unity-generated cache folders or local builds.
 
 ## Commit boundaries

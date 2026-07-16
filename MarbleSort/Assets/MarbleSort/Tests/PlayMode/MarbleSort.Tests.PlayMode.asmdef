@@ -1,0 +1,19 @@
+{
+  "name": "MarbleSort.Tests.PlayMode",
+  "rootNamespace": "MarbleSort.Tests.PlayMode",
+  "references": [
+    "MarbleSort.Runtime"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false,
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ]
+}

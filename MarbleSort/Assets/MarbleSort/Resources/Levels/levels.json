@@ -174,14 +174,12 @@
         "rows": 4,
         "cellSpacing": 1.0,
         "boxes": [
-          { "id": "l04_top_green_01", "color": "green", "column": 0, "row": 0 },
-          { "id": "l04_top_blue_01", "color": "blue", "column": 0, "row": 1 },
-          { "id": "l04_top_orange_01", "color": "orange", "column": 1, "row": 0 },
+          { "id": "l04_top_orange_01", "color": "orange", "column": 0, "row": 0 },
+          { "id": "l04_top_green_01", "color": "green", "column": 0, "row": 1 },
+          { "id": "l04_top_blue_01", "color": "blue", "column": 1, "row": 0 },
           { "id": "l04_top_yellow_01", "color": "yellow", "column": 1, "row": 1 },
-          { "id": "l04_top_blue_02", "color": "blue", "column": 2, "row": 0 },
-          { "id": "l04_top_green_02", "color": "green", "column": 2, "row": 1 },
-          { "id": "l04_top_yellow_02", "color": "yellow", "column": 3, "row": 0 },
-          { "id": "l04_top_orange_02", "color": "orange", "column": 3, "row": 1 }
+          { "id": "l04_top_green_02", "color": "green", "column": 2, "row": 0 },
+          { "id": "l04_top_blue_02", "color": "blue", "column": 3, "row": 0 }
         ]
       },
       "receiverLanes": [
@@ -190,12 +188,11 @@
           "position": { "x": -2.7, "y": -5.2, "z": 0.0 },
           "verticalSpacing": 0.7,
           "boxes": [
-            { "id": "l04_receiver_green_01", "color": "green" },
             { "id": "l04_receiver_orange_01", "color": "orange" },
+            { "id": "l04_receiver_green_01", "color": "green" },
             { "id": "l04_receiver_blue_01", "color": "blue" },
             { "id": "l04_receiver_yellow_01", "color": "yellow" },
-            { "id": "l04_receiver_green_02", "color": "green" },
-            { "id": "l04_receiver_orange_02", "color": "orange" }
+            { "id": "l04_receiver_green_02", "color": "green" }
           ]
         },
         {
@@ -203,12 +200,11 @@
           "position": { "x": -0.9, "y": -5.2, "z": 0.0 },
           "verticalSpacing": 0.7,
           "boxes": [
-            { "id": "l04_receiver_blue_02", "color": "blue" },
             { "id": "l04_receiver_yellow_02", "color": "yellow" },
-            { "id": "l04_receiver_orange_03", "color": "orange" },
+            { "id": "l04_receiver_blue_02", "color": "blue" },
             { "id": "l04_receiver_green_03", "color": "green" },
-            { "id": "l04_receiver_blue_03", "color": "blue" },
-            { "id": "l04_receiver_yellow_03", "color": "yellow" }
+            { "id": "l04_receiver_orange_02", "color": "orange" },
+            { "id": "l04_receiver_blue_03", "color": "blue" }
           ]
         },
         {
@@ -218,10 +214,8 @@
           "boxes": [
             { "id": "l04_receiver_green_04", "color": "green" },
             { "id": "l04_receiver_blue_04", "color": "blue" },
-            { "id": "l04_receiver_yellow_04", "color": "yellow" },
-            { "id": "l04_receiver_orange_04", "color": "orange" },
-            { "id": "l04_receiver_green_05", "color": "green" },
-            { "id": "l04_receiver_blue_05", "color": "blue" }
+            { "id": "l04_receiver_orange_03", "color": "orange" },
+            { "id": "l04_receiver_green_05", "color": "green" }
           ]
         },
         {
@@ -229,12 +223,10 @@
           "position": { "x": 2.7, "y": -5.2, "z": 0.0 },
           "verticalSpacing": 0.7,
           "boxes": [
-            { "id": "l04_receiver_orange_05", "color": "orange" },
-            { "id": "l04_receiver_yellow_05", "color": "yellow" },
+            { "id": "l04_receiver_blue_05", "color": "blue" },
+            { "id": "l04_receiver_yellow_03", "color": "yellow" },
             { "id": "l04_receiver_green_06", "color": "green" },
-            { "id": "l04_receiver_blue_06", "color": "blue" },
-            { "id": "l04_receiver_orange_06", "color": "orange" },
-            { "id": "l04_receiver_yellow_06", "color": "yellow" }
+            { "id": "l04_receiver_blue_06", "color": "blue" }
           ]
         }
       ]
@@ -249,10 +241,12 @@
         "boxes": [
           { "id": "l05_top_orange_01", "color": "orange", "column": 0, "row": 0 },
           { "id": "l05_top_green_01", "color": "green", "column": 0, "row": 1 },
-          { "id": "l05_top_blue_01", "color": "blue", "column": 1, "row": 0 },
+          { "id": "l05_top_blue_01", "color": "blue", "column": 0, "row": 2 },
+          { "id": "l05_top_blue_02", "color": "blue", "column": 1, "row": 0 },
           { "id": "l05_top_yellow_01", "color": "yellow", "column": 1, "row": 1 },
+          { "id": "l05_top_orange_02", "color": "orange", "column": 1, "row": 2 },
           { "id": "l05_top_green_02", "color": "green", "column": 2, "row": 0 },
-          { "id": "l05_top_blue_02", "color": "blue", "column": 3, "row": 0 }
+          { "id": "l05_top_yellow_02", "color": "yellow", "column": 3, "row": 0 }
         ]
       },
       "receiverLanes": [
@@ -261,11 +255,12 @@
           "position": { "x": -2.7, "y": -5.2, "z": 0.0 },
           "verticalSpacing": 0.7,
           "boxes": [
-            { "id": "l05_receiver_orange_01", "color": "orange" },
             { "id": "l05_receiver_green_01", "color": "green" },
+            { "id": "l05_receiver_orange_01", "color": "orange" },
             { "id": "l05_receiver_blue_01", "color": "blue" },
             { "id": "l05_receiver_yellow_01", "color": "yellow" },
-            { "id": "l05_receiver_green_02", "color": "green" }
+            { "id": "l05_receiver_green_02", "color": "green" },
+            { "id": "l05_receiver_orange_02", "color": "orange" }
           ]
         },
         {
@@ -273,11 +268,12 @@
           "position": { "x": -0.9, "y": -5.2, "z": 0.0 },
           "verticalSpacing": 0.7,
           "boxes": [
-            { "id": "l05_receiver_yellow_02", "color": "yellow" },
             { "id": "l05_receiver_blue_02", "color": "blue" },
+            { "id": "l05_receiver_yellow_02", "color": "yellow" },
+            { "id": "l05_receiver_orange_03", "color": "orange" },
             { "id": "l05_receiver_green_03", "color": "green" },
-            { "id": "l05_receiver_orange_02", "color": "orange" },
-            { "id": "l05_receiver_blue_03", "color": "blue" }
+            { "id": "l05_receiver_blue_03", "color": "blue" },
+            { "id": "l05_receiver_yellow_03", "color": "yellow" }
           ]
         },
         {
@@ -287,8 +283,10 @@
           "boxes": [
             { "id": "l05_receiver_green_04", "color": "green" },
             { "id": "l05_receiver_blue_04", "color": "blue" },
-            { "id": "l05_receiver_orange_03", "color": "orange" },
-            { "id": "l05_receiver_green_05", "color": "green" }
+            { "id": "l05_receiver_yellow_04", "color": "yellow" },
+            { "id": "l05_receiver_orange_04", "color": "orange" },
+            { "id": "l05_receiver_green_05", "color": "green" },
+            { "id": "l05_receiver_blue_05", "color": "blue" }
           ]
         },
         {
@@ -296,10 +294,12 @@
           "position": { "x": 2.7, "y": -5.2, "z": 0.0 },
           "verticalSpacing": 0.7,
           "boxes": [
-            { "id": "l05_receiver_blue_05", "color": "blue" },
-            { "id": "l05_receiver_yellow_03", "color": "yellow" },
+            { "id": "l05_receiver_orange_05", "color": "orange" },
+            { "id": "l05_receiver_yellow_05", "color": "yellow" },
             { "id": "l05_receiver_green_06", "color": "green" },
-            { "id": "l05_receiver_blue_06", "color": "blue" }
+            { "id": "l05_receiver_blue_06", "color": "blue" },
+            { "id": "l05_receiver_orange_06", "color": "orange" },
+            { "id": "l05_receiver_yellow_06", "color": "yellow" }
           ]
         }
       ]

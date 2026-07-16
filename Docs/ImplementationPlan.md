@@ -15,8 +15,10 @@ Status: complete and verified as the first project milestone.
 
 - Build the runtime grid from JSON.
 - Implement exposed-box input rules, column collapse, and nine-marble release.
-- Add marble pooling, constrained rigidbodies, collision layers, and basin containment.
+- Add marble pooling, constrained rigidbodies, collision configuration, and basin containment.
 - Gate: repeated selections allocate no new marble objects after pool warm-up and never allow a covered box to be selected.
+
+Status: complete and verified on `top-grid-marble-spawning` with EditMode and PlayMode coverage.
 
 ## Day 3 — Conveyor admission
 
@@ -25,11 +27,15 @@ Status: complete and verified as the first project milestone.
 - Animate deterministic counterclockwise movement along the stadium path.
 - Gate: no slot can contain two marbles, a full conveyor blocks admission, and long runs keep stable ordering.
 
+Status: complete and verified on `conveyor-admission` with EditMode, PlayMode, and portrait simulator coverage.
+
 ## Day 4 — Receivers and level flow
 
 - Implement four FIFO lanes, active heads, color matching, three-marble capacity, and queue advance.
 - Add event-driven completion, deadlock, retry, next-level flow, and five-to-one wraparound.
 - Gate: automated tests cover matching, non-matching, completion, deadlock, and session progression; one full level is playable end to end.
+
+Status: complete and verified on `receivers-level-flow` with EditMode, PlayMode, automatic collection-point, retry, progression, and full Level 1 end-to-end coverage.
 
 ## Day 5 — Five production levels and editor workflow
 
@@ -37,6 +43,10 @@ Status: complete and verified as the first project milestone.
 - Expand the custom level window with actionable validation and rapid preview/reload controls.
 - Run solvability and count checks on every level.
 - Gate: all production JSON passes validation and every level can be completed from a clean launch.
+
+Status: complete and verified on `production-levels-editor` with deterministic solvability
+analysis, a 2/3/4/6/8-box difficulty curve, safe JSON authoring, direct selected-level preview,
+27 EditMode tests, and 12 PlayMode tests covering all five clean runtime builds.
 
 ## Day 6 — Presentation and performance
 
@@ -46,12 +56,20 @@ Status: complete and verified as the first project milestone.
 - Profile physics, scripts, rendering, memory, and garbage collection on the target device.
 - Gate: stable target frame rate, no recurring gameplay allocations, and no blocking console errors.
 
+Status: complete and verified on `presentation-performance` with a responsive illustrated layout,
+cached procedural meshes, one-system particles, prewarmed procedural audio, safe-area HUD states,
+platform-guarded haptics, runtime performance diagnostics, 31 EditMode tests, and 16 PlayMode tests.
+
 ## Day 7 — Delivery QA
 
 - Perform device playthroughs, edge-case checks, clean-clone verification, and final regression tests.
 - Produce the required build, README/setup instructions, architecture explanation, and demonstration capture.
 - Review commit history and repository contents for secrets, caches, oversized files, and accidental artifacts.
 - Gate: a reviewer can clone, open with the required Unity version, run the scene, run tests, and build without undocumented steps.
+
+Status: complete on `delivery-qa` with a 12-check delivery validator, 35 EditMode tests, 16
+PlayMode tests, a successful universal macOS smoke build and boot, explicit reviewer instructions,
+known limitations, and clean-clone verification.
 
 ## Git gates
 

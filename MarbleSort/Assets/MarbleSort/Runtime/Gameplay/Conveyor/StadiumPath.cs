@@ -75,6 +75,33 @@ namespace MarbleSort.Gameplay.Conveyor
             return new StadiumPose(rightPosition, rightTangent.normalized);
         }
 
+        public static int FindClosestSlotIndex(
+            float phase,
+            int slotCount,
+            float targetNormalizedDistance,
+            out float normalizedDistance)
+        {
+            if (slotCount < 1)
+            {
+                throw new ArgumentOutOfRangeException(nameof(slotCount));
+            }
+
+            int closestIndex = 0;
+            normalizedDistance = float.MaxValue;
+            for (int index = 0; index < slotCount; index++)
+            {
+                float slotDistance = Mathf.Repeat(phase + (index / (float)slotCount), 1f);
+                float distance = Mathf.Abs(Mathf.Repeat(slotDistance - targetNormalizedDistance + 0.5f, 1f) - 0.5f);
+                if (distance < normalizedDistance)
+                {
+                    normalizedDistance = distance;
+                    closestIndex = index;
+                }
+            }
+
+            return closestIndex;
+        }
+
         private static void ValidateGeometry(float straightLength, float turnRadius)
         {
             if (straightLength <= 0f)

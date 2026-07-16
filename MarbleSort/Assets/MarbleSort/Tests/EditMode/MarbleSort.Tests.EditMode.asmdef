@@ -2,7 +2,8 @@
   "name": "MarbleSort.Tests.EditMode",
   "rootNamespace": "MarbleSort.Tests.EditMode",
   "references": [
-    "MarbleSort.Runtime"
+    "MarbleSort.Runtime",
+    "MarbleSort.Editor"
   ],
   "includePlatforms": [
     "Editor"

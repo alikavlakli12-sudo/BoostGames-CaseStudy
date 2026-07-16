@@ -1,0 +1,63 @@
+# Presentation and Performance
+
+Milestone 5 keeps the verified gameplay state model unchanged and layers presentation onto the
+existing runtime events. The visual scene can still be rebuilt deterministically with
+**Marble Sort > Setup > Rebuild Base Scene**.
+
+## Visual system
+
+- `PortraitBackground.png` is an original project-specific illustrated backdrop. It is imported at
+  1024×1536, compressed, clamped, and without mipmaps for the fixed portrait camera.
+- Its creation method, final prompt, and licensing note are recorded in
+  [AssetProvenance.md](AssetProvenance.md).
+- Rounded top boxes, receiver boxes, basin panels, and the conveyor use cached procedural meshes.
+  Generated mesh objects are marked `DontSave`; serialized mesh specifications recreate them on
+  load without duplicating mesh data inside the scene.
+- One continuous stadium-ribbon mesh replaces the three-piece conveyor blockout.
+- Shared materials, instancing, and disabled real-time shadows keep the soft outlined style
+  inexpensive. Highlights and shadows are explicit lightweight geometry.
+- The responsive camera preserves the full gameplay width on narrow portrait devices and scales
+  the illustrated backdrop to cover the visible area.
+- The immediate-mode HUD uses generated nine-slice textures, honors `Screen.safeArea`, and exposes
+  retry, completion, and deadlock states without adding a canvas hierarchy.
+
+## Feedback and audio
+
+- Top-box selection, conveyor admission, marble collection, receiver completion, level completion,
+  and deadlock state feed one `GameFeedbackController`.
+- A single reusable particle system emits all color-matched bursts. Level reloads do not create
+  additional particle systems.
+- Six short audio clips are synthesized and prewarmed once per scene, so the prototype has no
+  third-party audio licensing dependency. Admission and collection sounds are rate-limited to
+  avoid noisy overlaps.
+- Major completion and deadlock events use platform-guarded haptics on iOS and Android and remain
+  no-ops in the editor and unsupported builds.
+- Receiver feedback keeps a lane locked until its transfer and pulse animation finish, preserving
+  the one-marble-at-a-time state invariant.
+
+## Runtime budgets and guards
+
+| Resource | Budget/behavior |
+| --- | --- |
+| Loose/conveyor marbles | 72 objects prewarmed; Level 5 cannot require a 73rd marble |
+| Conveyor positions | 24 deterministic logical slots |
+| Feedback particles | One system, maximum 160 live particles |
+| Feedback audio | One `AudioSource`, six prewarmed procedural clips |
+| Presentation meshes | Shared cache keyed by dimensions; repeated level loads do not grow it |
+| Background texture | 1024×1536, compressed, no mipmaps |
+| Target frame rate | 60 FPS |
+| Runtime diagnostics | Allocation-free rolling frame probe with FPS, worst-frame, and GC counters |
+
+The automated highest-load test builds Level 5 twice and verifies that marble count, mesh-cache
+count, particle system, and audio source remain unchanged. Rendering and interaction objects use
+shared materials and do not request real-time shadows.
+
+## QA checklist
+
+1. Play Level 1 and confirm the retry control and level title remain below the device safe area.
+2. Select both Level 1 boxes and confirm selection, admission, collection, receiver completion,
+   level completion, and automatic progression feedback.
+3. Preview Level 5 through **Marble Sort > Level Catalog** and verify three-deep stacks, all four
+   receiver lanes, and the full lower receiver bay remain inside the portrait frame.
+4. Trigger a full incompatible conveyor and confirm the deadlock overlay and retry reset.
+5. Run all EditMode and PlayMode tests after any presentation or scene-bootstrapper change.

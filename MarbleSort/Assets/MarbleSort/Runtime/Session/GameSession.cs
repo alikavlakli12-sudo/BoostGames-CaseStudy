@@ -29,5 +29,16 @@ namespace MarbleSort.Session
             CurrentLevelIndex = (CurrentLevelIndex + 1) % levelCount;
             return CurrentLevelIndex;
         }
+
+        public int SelectLevel(int levelIndex)
+        {
+            if (levelIndex < 0 || levelIndex >= levelCount)
+            {
+                throw new ArgumentOutOfRangeException(nameof(levelIndex));
+            }
+
+            CurrentLevelIndex = levelIndex;
+            return CurrentLevelIndex;
+        }
     }
 }

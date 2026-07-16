@@ -6,6 +6,10 @@ namespace MarbleSort.Validation
 {
     public static class LevelCatalogValidator
     {
+        private static readonly HashSet<string> SupportedColors = new HashSet<string>(
+            new[] { "green", "blue", "orange", "yellow" },
+            StringComparer.OrdinalIgnoreCase);
+
         public static ValidationReport Validate(LevelCatalogData catalog)
         {
             ValidationReport report = new ValidationReport();
@@ -23,13 +27,13 @@ namespace MarbleSort.Validation
             ValidateConveyor(catalog.conveyor, report);
 
             LevelData[] levels = catalog.levels ?? new LevelData[0];
-            if (levels.Length < 5)
+            if (levels.Length != 5)
             {
                 report.Add(
                     ValidationSeverity.Error,
-                    "CATALOG_MIN_LEVELS",
+                    "CATALOG_LEVEL_COUNT",
                     "catalog",
-                    $"The case study requires at least 5 levels, but the catalog contains {levels.Length}.");
+                    $"The case study requires exactly 5 production levels, but the catalog contains {levels.Length}.");
             }
 
             HashSet<string> levelIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -52,7 +56,7 @@ namespace MarbleSort.Validation
                     report.Add(ValidationSeverity.Error, "LEVEL_ID_DUPLICATE", context, $"Duplicate level ID '{level.id}'.");
                 }
 
-                ValidateLevel(level, context, report);
+                ValidateLevel(level, context, catalog.conveyor?.slotCount ?? 0, report);
             }
 
             return report;
@@ -73,10 +77,10 @@ namespace MarbleSort.Validation
             else if (conveyor.slotCount != 24)
             {
                 report.Add(
-                    ValidationSeverity.Warning,
-                    "CONVEYOR_REFERENCE_SLOT_COUNT",
+                    ValidationSeverity.Error,
+                    "CONVEYOR_SLOT_COUNT_REQUIRED",
                     "catalog.conveyor",
-                    $"The supplied game reference uses 24 slots; this catalog uses {conveyor.slotCount}.");
+                    $"Marble Sort requires exactly 24 logical slots; this catalog uses {conveyor.slotCount}.");
             }
 
             if (conveyor.unitsPerSecond <= 0f)
@@ -94,15 +98,38 @@ namespace MarbleSort.Validation
             }
         }
 
-        private static void ValidateLevel(LevelData level, string context, ValidationReport report)
+        private static void ValidateLevel(
+            LevelData level,
+            string context,
+            int conveyorCapacity,
+            ValidationReport report)
         {
+            int issueStartIndex = report.Issues.Count;
             Dictionary<string, int> topCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             Dictionary<string, int> receiverCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             HashSet<string> objectIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+            if (string.IsNullOrWhiteSpace(level.displayName))
+            {
+                report.Add(ValidationSeverity.Error, "LEVEL_NAME_EMPTY", context, "Every level needs a display name.");
+            }
+
             ValidateTopGrid(level.topGrid, context, objectIds, topCounts, report);
             ValidateReceiverLanes(level.receiverLanes, context, objectIds, receiverCounts, report);
             ValidateColorRatio(context, topCounts, receiverCounts, report);
+
+            if (!HasErrorsSince(report, issueStartIndex) && conveyorCapacity > 0)
+            {
+                LevelSolvabilityResult solvability = LevelSolvabilityAnalyzer.Analyze(level, conveyorCapacity);
+                if (!solvability.IsSolvable)
+                {
+                    report.Add(
+                        ValidationSeverity.Error,
+                        "LEVEL_UNSOLVABLE",
+                        context,
+                        solvability.Message);
+                }
+            }
         }
 
         private static void ValidateTopGrid(
@@ -181,12 +208,13 @@ namespace MarbleSort.Validation
             if (lanes.Length != 4)
             {
                 report.Add(
-                    ValidationSeverity.Warning,
-                    "RECEIVER_REFERENCE_LANE_COUNT",
+                    ValidationSeverity.Error,
+                    "RECEIVER_LANE_COUNT",
                     context,
-                    $"The supplied game reference uses 4 receiver lanes; this level uses {lanes.Length}.");
+                    $"Marble Sort requires exactly 4 receiver lanes; this level uses {lanes.Length}.");
             }
 
+            HashSet<float> laneXPositions = new HashSet<float>();
             for (int laneIndex = 0; laneIndex < lanes.Length; laneIndex++)
             {
                 ReceiverLaneData lane = lanes[laneIndex];
@@ -198,6 +226,19 @@ namespace MarbleSort.Validation
                 }
 
                 ValidateObjectId(lane.id, laneContext, objectIds, report);
+                if (lane.position == null)
+                {
+                    report.Add(ValidationSeverity.Error, "RECEIVER_LANE_POSITION", laneContext, "A lane position is required.");
+                }
+                else if (!laneXPositions.Add(lane.position.x))
+                {
+                    report.Add(
+                        ValidationSeverity.Error,
+                        "RECEIVER_LANE_POSITION_DUPLICATE",
+                        laneContext,
+                        $"More than one receiver lane uses horizontal position {lane.position.x}.");
+                }
+
                 if (lane.verticalSpacing <= 0f)
                 {
                     report.Add(ValidationSeverity.Error, "RECEIVER_LANE_SPACING", laneContext, "Vertical spacing must be positive.");
@@ -206,7 +247,7 @@ namespace MarbleSort.Validation
                 BottomBoxData[] boxes = lane.boxes ?? new BottomBoxData[0];
                 if (boxes.Length == 0)
                 {
-                    report.Add(ValidationSeverity.Warning, "RECEIVER_LANE_EMPTY", laneContext, "This lane contains no receiver boxes.");
+                    report.Add(ValidationSeverity.Error, "RECEIVER_LANE_EMPTY", laneContext, "Every production lane needs at least one receiver box.");
                 }
 
                 for (int boxIndex = 0; boxIndex < boxes.Length; boxIndex++)
@@ -280,7 +321,17 @@ namespace MarbleSort.Validation
                 return string.Empty;
             }
 
-            return color.Trim().ToLowerInvariant();
+            string normalized = color.Trim().ToLowerInvariant();
+            if (!SupportedColors.Contains(normalized))
+            {
+                report.Add(
+                    ValidationSeverity.Error,
+                    "COLOR_UNSUPPORTED",
+                    context,
+                    $"Color '{color}' is not supported. Use green, blue, orange, or yellow.");
+            }
+
+            return normalized;
         }
 
         private static void AddCount(Dictionary<string, int> counts, string key)
@@ -291,6 +342,19 @@ namespace MarbleSort.Validation
         private static string GetContext(string preferred, string fallback)
         {
             return string.IsNullOrWhiteSpace(preferred) ? fallback : preferred.Trim();
+        }
+
+        private static bool HasErrorsSince(ValidationReport report, int startIndex)
+        {
+            for (int index = startIndex; index < report.Issues.Count; index++)
+            {
+                if (report.Issues[index].Severity == ValidationSeverity.Error)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }

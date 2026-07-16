@@ -5,6 +5,7 @@ using MarbleSort.Core;
 using MarbleSort.Data;
 using MarbleSort.Gameplay.Conveyor;
 using MarbleSort.Gameplay.Marbles;
+using MarbleSort.Presentation;
 using UnityEngine;
 
 namespace MarbleSort.Gameplay.Receivers
@@ -225,19 +226,21 @@ namespace MarbleSort.Gameplay.Receivers
             marble.SetReceiverTransferPosition(target);
             marblePool.Return(marble);
             transferringMarbles.Remove(marble);
-            PendingTransferCount--;
-            laneTransfers[result.LaneIndex] = false;
 
             if (result.BoxCompleted)
             {
+                yield return AnimateBoxPulse(boxView.Root.transform, true);
                 RebuildLaneView(result.LaneIndex);
                 ReceiverCompleted?.Invoke(result.LaneIndex, result.BoxId, result.ColorId);
             }
             else
             {
                 boxView.SetFilledCount(result.FillCount, palette?.GetMaterial(result.ColorId));
+                yield return AnimateBoxPulse(boxView.Root.transform, false);
             }
 
+            PendingTransferCount--;
+            laneTransfers[result.LaneIndex] = false;
             MarbleCollected?.Invoke(result);
             StateChanged?.Invoke();
         }
@@ -282,14 +285,47 @@ namespace MarbleSort.Gameplay.Receivers
             GameObject root = new GameObject($"Receiver - {box.Id}");
             root.transform.SetParent(parent, false);
             root.transform.localPosition = localPosition;
+            root.transform.localScale = Vector3.one * (active ? 1f : 0.94f);
 
-            GameObject body = CreatePrimitive(
-                "Box",
-                PrimitiveType.Cube,
+            GameObject shadow = PresentationMeshFactory.CreateRoundedBox(
+                "Soft Shadow",
                 root.transform,
-                Vector3.zero,
-                new Vector3(1.45f, 0.56f, 0.35f),
-                palette?.GetMaterial(box.ColorId));
+                1.54f,
+                0.64f,
+                0.2f,
+                0.16f,
+                PresentationMaterialLibrary.GetSoftShadow());
+            shadow.transform.localPosition = new Vector3(0.04f, -0.045f, 0.15f);
+
+            Material colorMaterial = palette?.GetMaterial(box.ColorId);
+            GameObject outline = PresentationMeshFactory.CreateRoundedBox(
+                "Color Outline",
+                root.transform,
+                1.5f,
+                0.62f,
+                0.28f,
+                0.16f,
+                PresentationMaterialLibrary.GetDarkened(colorMaterial));
+            outline.transform.localPosition = new Vector3(0f, -0.015f, 0.06f);
+
+            GameObject body = PresentationMeshFactory.CreateRoundedBox(
+                "Box",
+                root.transform,
+                1.42f,
+                0.54f,
+                0.3f,
+                0.14f,
+                colorMaterial);
+
+            GameObject highlight = PresentationMeshFactory.CreateRoundedBox(
+                "Top Highlight",
+                root.transform,
+                1.08f,
+                0.055f,
+                0.02f,
+                0.025f,
+                PresentationMaterialLibrary.GetHighlight(colorMaterial));
+            highlight.transform.localPosition = new Vector3(-0.04f, 0.19f, -0.17f);
 
             Renderer[] markers = Array.Empty<Renderer>();
             Transform[] markerTransforms = Array.Empty<Transform>();
@@ -303,8 +339,8 @@ namespace MarbleSort.Gameplay.Receivers
                         $"Capacity {index + 1}",
                         PrimitiveType.Sphere,
                         root.transform,
-                        new Vector3(-0.35f + (index * 0.35f), 0f, -0.24f),
-                        new Vector3(0.14f, 0.14f, 0.07f),
+                        new Vector3(-0.38f + (index * 0.38f), -0.015f, -0.2f),
+                        new Vector3(0.16f, 0.16f, 0.075f),
                         emptyCapacityMaterial);
                     markers[index] = marker.GetComponent<Renderer>();
                     markerTransforms[index] = marker.transform;
@@ -314,6 +350,40 @@ namespace MarbleSort.Gameplay.Receivers
             ReceiverBoxRuntimeView view = new ReceiverBoxRuntimeView(root, body, markers, markerTransforms);
             view.SetFilledCount(box.FillCount, palette?.GetMaterial(box.ColorId));
             return view;
+        }
+
+        private static IEnumerator AnimateBoxPulse(Transform target, bool completing)
+        {
+            if (target == null)
+            {
+                yield break;
+            }
+
+            Vector3 originalScale = target.localScale;
+            Vector3 peakScale = originalScale * 1.11f;
+            const float riseDuration = 0.08f;
+            float elapsed = 0f;
+            while (elapsed < riseDuration)
+            {
+                elapsed += Time.deltaTime;
+                float normalized = Mathf.Clamp01(elapsed / riseDuration);
+                target.localScale = Vector3.LerpUnclamped(originalScale, peakScale, normalized);
+                yield return null;
+            }
+
+            Vector3 endScale = completing ? originalScale * 0.15f : originalScale;
+            const float settleDuration = 0.1f;
+            elapsed = 0f;
+            while (elapsed < settleDuration)
+            {
+                elapsed += Time.deltaTime;
+                float normalized = Mathf.Clamp01(elapsed / settleDuration);
+                float eased = normalized * normalized * (3f - (2f * normalized));
+                target.localScale = Vector3.LerpUnclamped(peakScale, endScale, eased);
+                yield return null;
+            }
+
+            target.localScale = endScale;
         }
 
         private static GameObject CreatePrimitive(

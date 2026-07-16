@@ -20,6 +20,10 @@
 - Conveyor motion is updated by one controller rather than one component per marble.
 - Gameplay checks are event-driven; scene searches and per-frame allocations are avoided.
 - Reusable marbles and effects are pooled.
+- Rounded box and stadium meshes are cached by dimensions and regenerated from serialized
+  specifications instead of being duplicated in the scene.
+- One feedback controller, particle system, audio source, and rolling performance probe serve the
+  entire session and survive clean level rebuilds.
 
 ## Level-data invariant
 
@@ -38,3 +42,10 @@ draft, runs the same structural validator used at runtime, and invokes a determi
 exposed top-box choices and receiver heads. Only a structurally valid, solvable draft can be saved
 or previewed. Preview always starts `Main.unity` and asks the runtime level-flow controller to
 rebuild the selected level, so authoring does not require scene edits or level-specific prefabs.
+
+## Presentation event flow
+
+Top-grid selection, conveyor admission, receiver acceptance, receiver completion, and level-flow
+status changes publish events from their owning gameplay systems. The presentation controller
+subscribes to those events and emits particles, audio, and platform-safe haptics without mutating
+gameplay state. The responsive camera and safe-area HUD are independent observers of device layout.

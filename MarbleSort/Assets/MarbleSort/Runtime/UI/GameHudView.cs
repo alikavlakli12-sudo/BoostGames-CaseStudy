@@ -13,11 +13,28 @@ namespace MarbleSort.UI
 
         private GUIStyle levelStyle;
         private GUIStyle statusStyle;
-        private GUIStyle buttonStyle;
+        private GUIStyle subStatusStyle;
+        private GUIStyle topButtonStyle;
+        private GUIStyle retryButtonStyle;
+        private GUIStyle levelPanelStyle;
+        private GUIStyle overlayPanelStyle;
+        private GUIStyle shadowPanelStyle;
+        private Texture2D levelPanelTexture;
+        private Texture2D overlayPanelTexture;
+        private Texture2D buttonTexture;
+        private Texture2D shadowTexture;
         private string levelName = "Level 1";
-        private string statusMessage = string.Empty;
+        private string statusTitle = string.Empty;
+        private string statusSubtitle = string.Empty;
         private bool overlayVisible;
         private bool retryVisible;
+        private float overlayAlpha;
+
+        public bool OverlayVisible => overlayVisible;
+
+        public bool RetryVisible => retryVisible;
+
+        public float LastSafeTopOffset { get; private set; }
 
         public void Configure(LevelFlowController flow)
         {
@@ -34,7 +51,8 @@ namespace MarbleSort.UI
         public void ShowComplete(string displayName)
         {
             levelName = displayName;
-            statusMessage = "LEVEL COMPLETE!\nNext level starting...";
+            statusTitle = "LEVEL COMPLETE!";
+            statusSubtitle = "Great sorting — next level starting";
             overlayVisible = true;
             retryVisible = false;
         }
@@ -42,18 +60,32 @@ namespace MarbleSort.UI
         public void ShowDeadlocked(string displayName)
         {
             levelName = displayName;
-            statusMessage = "NO MORE MOVES";
+            statusTitle = "NO MORE MOVES";
+            statusSubtitle = "The conveyor is full. Reset and try a new order.";
             overlayVisible = true;
             retryVisible = true;
+        }
+
+        private void Update()
+        {
+            float target = overlayVisible ? 1f : 0f;
+            overlayAlpha = Mathf.MoveTowards(overlayAlpha, target, Time.unscaledDeltaTime * 5.5f);
         }
 
         private void OnGUI()
         {
             EnsureStyles();
 
-            float scale = Mathf.Min(Screen.width / ReferenceWidth, Screen.height / ReferenceHeight);
+            float scale = Mathf.Max(0.01f, Mathf.Min(
+                Screen.width / ReferenceWidth,
+                Screen.height / ReferenceHeight));
             float horizontalOffset = (Screen.width - (ReferenceWidth * scale)) * 0.5f;
             float verticalOffset = (Screen.height - (ReferenceHeight * scale)) * 0.5f;
+            Rect safeArea = Screen.safeArea;
+            float safeTopPixels = Screen.height - safeArea.yMax;
+            LastSafeTopOffset = Mathf.Max(0f, (safeTopPixels - verticalOffset) / scale);
+            float topY = Mathf.Max(22f, LastSafeTopOffset + 14f);
+
             Matrix4x4 previousMatrix = GUI.matrix;
             Color previousColor = GUI.color;
             GUI.matrix = Matrix4x4.TRS(
@@ -61,32 +93,60 @@ namespace MarbleSort.UI
                 Quaternion.identity,
                 new Vector3(scale, scale, 1f));
 
-            GUI.color = new Color32(157, 119, 229, 255);
-            GUI.Box(new Rect(230f, 20f, 260f, 64f), GUIContent.none);
-            GUI.color = Color.white;
-            GUI.Label(new Rect(230f, 20f, 260f, 64f), levelName, levelStyle);
-
-            if (overlayVisible)
+            DrawTopHud(topY);
+            if (overlayAlpha > 0.001f)
             {
-                GUI.color = new Color(0.08f, 0.11f, 0.2f, 0.78f);
-                GUI.Box(new Rect(0f, 0f, ReferenceWidth, ReferenceHeight), GUIContent.none);
-                GUI.color = new Color32(182, 205, 225, 255);
-                GUI.Box(new Rect(100f, 490f, 520f, 300f), GUIContent.none);
-                GUI.color = new Color32(42, 55, 91, 255);
-                GUI.Label(new Rect(130f, 525f, 460f, 130f), statusMessage, statusStyle);
-
-                if (retryVisible)
-                {
-                    GUI.color = new Color32(255, 174, 48, 255);
-                    if (GUI.Button(new Rect(250f, 675f, 220f, 70f), "RETRY", buttonStyle))
-                    {
-                        levelFlow?.RetryCurrentLevel();
-                    }
-                }
+                DrawOverlay(overlayAlpha);
             }
 
             GUI.color = previousColor;
             GUI.matrix = previousMatrix;
+        }
+
+        private void DrawTopHud(float topY)
+        {
+            Rect retryShadow = new Rect(35f, topY + 6f, 78f, 72f);
+            Rect retryRect = new Rect(31f, topY, 78f, 72f);
+            GUI.Box(retryShadow, GUIContent.none, shadowPanelStyle);
+            if (GUI.Button(retryRect, "↻", topButtonStyle))
+            {
+                levelFlow?.RetryCurrentLevel();
+            }
+
+            Rect levelShadow = new Rect(218f, topY + 7f, 284f, 72f);
+            Rect levelRect = new Rect(216f, topY, 284f, 72f);
+            GUI.Box(levelShadow, GUIContent.none, shadowPanelStyle);
+            GUI.Box(levelRect, GUIContent.none, levelPanelStyle);
+            GUI.Label(levelRect, levelName, levelStyle);
+        }
+
+        private void DrawOverlay(float alpha)
+        {
+            Color previous = GUI.color;
+            Color overlayColor = new Color(0.055f, 0.075f, 0.15f, 0.78f * alpha);
+            GUI.color = overlayColor;
+            GUI.DrawTexture(
+                new Rect(0f, 0f, ReferenceWidth, ReferenceHeight),
+                Texture2D.whiteTexture,
+                ScaleMode.StretchToFill);
+
+            GUI.color = new Color(1f, 1f, 1f, alpha);
+            Rect panelShadow = new Rect(82f, 470f, 564f, 336f);
+            Rect panel = new Rect(78f, 458f, 564f, 336f);
+            GUI.Box(panelShadow, GUIContent.none, shadowPanelStyle);
+            GUI.Box(panel, GUIContent.none, overlayPanelStyle);
+            GUI.Label(new Rect(112f, 506f, 496f, 82f), statusTitle, statusStyle);
+            GUI.Label(new Rect(126f, 586f, 468f, 70f), statusSubtitle, subStatusStyle);
+
+            if (retryVisible && GUI.Button(
+                    new Rect(230f, 680f, 260f, 76f),
+                    "RETRY LEVEL",
+                    retryButtonStyle))
+            {
+                levelFlow?.RetryCurrentLevel();
+            }
+
+            GUI.color = previous;
         }
 
         private void EnsureStyles()
@@ -96,30 +156,140 @@ namespace MarbleSort.UI
                 return;
             }
 
+            levelPanelTexture = CreateRoundedTexture(
+                "Level Panel",
+                new Color32(156, 118, 232, 255),
+                new Color32(204, 178, 255, 255),
+                20f,
+                4f);
+            overlayPanelTexture = CreateRoundedTexture(
+                "Overlay Panel",
+                new Color32(211, 228, 244, 255),
+                new Color32(245, 249, 255, 255),
+                24f,
+                4f);
+            buttonTexture = CreateRoundedTexture(
+                "Action Button",
+                new Color32(255, 170, 48, 255),
+                new Color32(255, 220, 105, 255),
+                20f,
+                4f);
+            shadowTexture = CreateRoundedTexture(
+                "Panel Shadow",
+                new Color32(41, 54, 102, 205),
+                new Color32(41, 54, 102, 205),
+                22f,
+                0f);
+
+            RectOffset scalableBorder = new RectOffset(22, 22, 22, 22);
+            levelPanelStyle = new GUIStyle(GUI.skin.box)
+            {
+                normal = { background = levelPanelTexture },
+                border = scalableBorder
+            };
+            overlayPanelStyle = new GUIStyle(GUI.skin.box)
+            {
+                normal = { background = overlayPanelTexture },
+                border = scalableBorder
+            };
+            shadowPanelStyle = new GUIStyle(GUI.skin.box)
+            {
+                normal = { background = shadowTexture },
+                border = scalableBorder
+            };
             levelStyle = new GUIStyle(GUI.skin.label)
             {
                 alignment = TextAnchor.MiddleCenter,
-                fontSize = 34,
+                fontSize = 36,
                 fontStyle = FontStyle.Bold,
                 normal = { textColor = Color.white }
             };
             statusStyle = new GUIStyle(GUI.skin.label)
             {
                 alignment = TextAnchor.MiddleCenter,
-                fontSize = 38,
+                fontSize = 42,
                 fontStyle = FontStyle.Bold,
                 wordWrap = true,
-                normal = { textColor = new Color32(42, 55, 91, 255) }
+                normal = { textColor = new Color32(43, 55, 96, 255) }
             };
-            buttonStyle = new GUIStyle(GUI.skin.button)
+            subStatusStyle = new GUIStyle(GUI.skin.label)
+            {
+                alignment = TextAnchor.UpperCenter,
+                fontSize = 24,
+                wordWrap = true,
+                normal = { textColor = new Color32(81, 100, 138, 255) }
+            };
+            topButtonStyle = CreateButtonStyle(buttonTexture, 42);
+            retryButtonStyle = CreateButtonStyle(buttonTexture, 28);
+        }
+
+        private static GUIStyle CreateButtonStyle(Texture2D texture, int fontSize)
+        {
+            return new GUIStyle(GUI.skin.button)
             {
                 alignment = TextAnchor.MiddleCenter,
-                fontSize = 30,
+                fontSize = fontSize,
                 fontStyle = FontStyle.Bold,
-                normal = { textColor = Color.white },
-                hover = { textColor = Color.white },
-                active = { textColor = Color.white }
+                normal = { background = texture, textColor = Color.white },
+                hover = { background = texture, textColor = Color.white },
+                active = { background = texture, textColor = new Color32(255, 248, 220, 255) },
+                border = new RectOffset(22, 22, 22, 22)
             };
+        }
+
+        private static Texture2D CreateRoundedTexture(
+            string textureName,
+            Color fill,
+            Color border,
+            float radius,
+            float borderWidth)
+        {
+            const int size = 64;
+            Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false)
+            {
+                name = textureName,
+                filterMode = FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Clamp,
+                hideFlags = HideFlags.HideAndDontSave
+            };
+            Color[] pixels = new Color[size * size];
+            Vector2 center = new Vector2((size - 1) * 0.5f, (size - 1) * 0.5f);
+            Vector2 innerHalfSize = new Vector2(center.x - radius, center.y - radius);
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    Vector2 offset = new Vector2(Mathf.Abs(x - center.x), Mathf.Abs(y - center.y));
+                    Vector2 corner = new Vector2(
+                        Mathf.Max(offset.x - innerHalfSize.x, 0f),
+                        Mathf.Max(offset.y - innerHalfSize.y, 0f));
+                    float signedDistance = corner.magnitude - radius;
+                    float alpha = Mathf.Clamp01(0.75f - signedDistance);
+                    Color color = signedDistance > -borderWidth ? border : fill;
+                    color.a *= alpha;
+                    pixels[(y * size) + x] = color;
+                }
+            }
+
+            texture.SetPixels(pixels);
+            texture.Apply(false, true);
+            return texture;
+        }
+
+        private void OnDestroy()
+        {
+            DestroyTexture(levelPanelTexture);
+            DestroyTexture(overlayPanelTexture);
+            DestroyTexture(buttonTexture);
+            DestroyTexture(shadowTexture);
+        }
+
+        private static void DestroyTexture(Texture2D texture)
+        {
+            if (texture != null)
+            {
+                Destroy(texture);
+            }
         }
     }
 }

@@ -123,8 +123,12 @@ namespace MarbleSort.Gameplay.Marbles
             SphereCollider sphere = marbleObject.GetComponent<SphereCollider>();
             sphere.contactOffset = 0.01f;
 
+            Renderer marbleRenderer = marbleObject.GetComponent<Renderer>();
+            marbleRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            marbleRenderer.receiveShadows = false;
+
             MarbleActor marble = marbleObject.AddComponent<MarbleActor>();
-            marble.ConfigureInfrastructure(this, body, marbleObject.GetComponent<Renderer>());
+            marble.ConfigureInfrastructure(this, body, marbleRenderer);
             marble.Deactivate();
             CreatedCount++;
             return marble;

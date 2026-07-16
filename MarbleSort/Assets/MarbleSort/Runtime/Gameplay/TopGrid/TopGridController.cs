@@ -31,6 +31,8 @@ namespace MarbleSort.Gameplay.TopGrid
 
         public event Action<string> BoxRemoved;
 
+        public event Action<string, string, Vector3> BoxSelected;
+
         public TopGridState State => state;
 
         public bool InputLocked => inputLocked;
@@ -93,6 +95,7 @@ namespace MarbleSort.Gameplay.TopGrid
 
             inputLocked = true;
             RefreshExposure();
+            BoxSelected?.Invoke(view.BoxId, view.ColorId, view.transform.position);
             StartCoroutine(ReleaseAndCollapse(view));
             return true;
         }

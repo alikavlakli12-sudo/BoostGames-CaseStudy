@@ -1,0 +1,30 @@
+* text=auto eol=lf
+
+*.cs text diff=csharp
+*.json text
+*.md text
+*.asmdef text
+*.asmref text
+*.meta text
+*.unity text
+*.prefab text
+*.asset text
+*.mat text
+*.controller text
+*.anim text
+
+# Unity's YAML serializer emits blank scalar values with trailing spaces.
+*.meta -whitespace
+*.unity -whitespace
+*.prefab -whitespace
+*.asset -whitespace
+*.mat -whitespace
+*.controller -whitespace
+*.anim -whitespace
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.mp3 binary
+*.wav binary
+*.fbx binary

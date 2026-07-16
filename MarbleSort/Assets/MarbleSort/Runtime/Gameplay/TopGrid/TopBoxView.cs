@@ -8,6 +8,7 @@ namespace MarbleSort.Gameplay.TopGrid
     public sealed class TopBoxView : MonoBehaviour
     {
         private readonly Transform[] marbleMarkers = new Transform[MarbleReleasePattern.MarbleCount];
+        private readonly Renderer[] closedRenderers = new Renderer[4];
         private Collider inputCollider;
         private GameObject trayContentRoot;
         private GameObject markerRoot;
@@ -19,13 +20,7 @@ namespace MarbleSort.Gameplay.TopGrid
         private float pulsePhase;
 
         private const float TraySpacing = 0.24f;
-        private const float TrayCellHalfSize = 0.125f;
-        private const float TrayOuterHalfSize = 0.395f;
-        private const float TrayHoleRadius = 0.113f;
-        private const float TrayInnerRadius = 0.071f;
-        private const float TrayCupDepth = 0.07f;
-        private const float TraySurfaceDepth = -0.285f;
-        private const float TrayBallSize = 0.16f;
+        private const float TrayBallSize = 0.18f;
 
         public string BoxId { get; private set; } = string.Empty;
 
@@ -69,6 +64,7 @@ namespace MarbleSort.Gameplay.TopGrid
                 0.2f,
                 PresentationMaterialLibrary.GetSoftShadow());
             shadow.transform.localPosition = new Vector3(0.035f, -0.06f, 0.16f);
+            closedRenderers[0] = shadow.GetComponent<Renderer>();
 
             GameObject outline = PresentationMeshFactory.CreateRoundedBox(
                 "Color Outline",
@@ -79,6 +75,7 @@ namespace MarbleSort.Gameplay.TopGrid
                 0.2f,
                 PresentationMaterialLibrary.GetDarkened(material));
             outline.transform.localPosition = new Vector3(0f, -0.015f, 0.06f);
+            closedRenderers[1] = outline.GetComponent<Renderer>();
 
             GameObject shell = PresentationMeshFactory.CreateRoundedBox(
                 "Box Shell",
@@ -90,6 +87,7 @@ namespace MarbleSort.Gameplay.TopGrid
                 material,
                 true);
             inputCollider = shell.GetComponent<Collider>();
+            closedRenderers[2] = shell.GetComponent<Renderer>();
 
             GameObject highlight = PresentationMeshFactory.CreateRoundedBox(
                 "Top Highlight",
@@ -100,44 +98,53 @@ namespace MarbleSort.Gameplay.TopGrid
                 0.035f,
                 PresentationMaterialLibrary.GetHighlight(material));
             highlight.transform.localPosition = new Vector3(-0.03f, 0.33f, -0.19f);
+            closedRenderers[3] = highlight.GetComponent<Renderer>();
 
             trayContentRoot = new GameObject("Exposed Nine-Cup Tray");
             trayContentRoot.transform.SetParent(transform, false);
+            trayContentRoot.transform.localRotation = Quaternion.Euler(7f, 0f, 0f);
+
+            GameObject trayShadow = PresentationMeshFactory.CreateRoundedBox(
+                "Preview Tray Shadow",
+                trayContentRoot.transform,
+                0.98f,
+                0.94f,
+                0.05f,
+                0.14f,
+                PresentationMaterialLibrary.GetSoftShadow());
+            trayShadow.transform.localPosition = new Vector3(0.035f, -0.085f, -0.08f);
 
             GameObject trayBacking = PresentationMeshFactory.CreateRoundedBox(
-                "Raised Tray Backing",
+                "Molded Tray Lower Side",
                 trayContentRoot.transform,
-                0.92f,
-                0.92f,
-                0.12f,
-                0.18f,
+                0.96f,
+                0.91f,
+                0.16f,
+                0.14f,
                 PresentationMaterialLibrary.GetDarkened(material));
-            trayBacking.transform.localPosition = new Vector3(0.018f, -0.025f, -0.13f);
+            trayBacking.transform.localPosition = new Vector3(0f, -0.045f, -0.13f);
 
             GameObject trayRim = PresentationMeshFactory.CreateRoundedBox(
-                "Raised Tray Rim",
+                "Molded Tray Highlight Rim",
                 trayContentRoot.transform,
-                0.88f,
-                0.88f,
-                0.1f,
-                0.16f,
+                0.94f,
+                0.89f,
+                0.12f,
+                0.135f,
                 PresentationMaterialLibrary.GetHighlight(material));
-            trayRim.transform.localPosition = new Vector3(0f, 0f, -0.16f);
+            trayRim.transform.localPosition = new Vector3(0f, 0f, -0.24f);
 
-            GameObject traySurface = PresentationMeshFactory.CreateNineCupTraySurface(
-                "Nine-Cup Tray Surface",
+            GameObject trayFace = PresentationMeshFactory.CreateRoundedBox(
+                "Molded Tray Face",
                 trayContentRoot.transform,
-                TraySpacing,
-                TrayCellHalfSize,
-                TrayOuterHalfSize,
-                TrayHoleRadius,
-                TrayInnerRadius,
-                TrayCupDepth,
+                0.86f,
+                0.81f,
+                0.08f,
+                0.105f,
                 material,
-                material,
-                PresentationMaterialLibrary.GetCup(material),
-                24);
-            traySurface.transform.localPosition = new Vector3(0f, 0f, TraySurfaceDepth);
+                false,
+                8);
+            trayFace.transform.localPosition = new Vector3(0f, 0f, -0.31f);
 
             markerRoot = new GameObject("Nine Marble Markers");
             markerRoot.transform.SetParent(trayContentRoot.transform, false);
@@ -147,7 +154,24 @@ namespace MarbleSort.Gameplay.TopGrid
                 GameObject marker = GameObject.CreatePrimitive(PrimitiveType.Sphere);
                 marker.name = $"Marker {index + 1:00}";
                 marker.transform.SetParent(markerRoot.transform, false);
-                marker.transform.localPosition = MarbleReleasePattern.GetLocalPosition(index);
+                Vector3 markerPosition = MarbleReleasePattern.GetLocalPosition(index, TraySpacing, -0.4f);
+
+                CreateCupLayer(
+                    $"Cup Ring {index + 1:00}",
+                    trayContentRoot.transform,
+                    new Vector3(markerPosition.x, markerPosition.y, -0.345f),
+                    0.225f,
+                    0.024f,
+                    PresentationMaterialLibrary.GetDarkened(material));
+                CreateCupLayer(
+                    $"Cup Interior {index + 1:00}",
+                    trayContentRoot.transform,
+                    new Vector3(markerPosition.x, markerPosition.y, -0.366f),
+                    0.176f,
+                    0.018f,
+                    PresentationMaterialLibrary.GetCup(material));
+
+                marker.transform.localPosition = markerPosition;
                 marker.transform.localScale = Vector3.one * TrayBallSize;
                 Renderer markerRenderer = marker.GetComponent<Renderer>();
                 markerRenderer.sharedMaterial = ballMaterial;
@@ -172,6 +196,14 @@ namespace MarbleSort.Gameplay.TopGrid
         {
             exposed = isExposed;
             trayContentRoot.SetActive(exposed);
+            for (int index = 0; index < closedRenderers.Length; index++)
+            {
+                if (closedRenderers[index] != null)
+                {
+                    closedRenderers[index].enabled = !exposed;
+                }
+            }
+
             targetScale = exposed ? 1.025f : 0.965f;
             RefreshCollider();
         }
@@ -191,12 +223,40 @@ namespace MarbleSort.Gameplay.TopGrid
 
         public Vector3 GetReleaseWorldPosition(int index)
         {
-            return marbleMarkers[index].position;
+            return transform.TransformPoint(MarbleReleasePattern.GetLocalPosition(index));
         }
 
         public void ConsumeMarker(int index)
         {
             marbleMarkers[index].gameObject.SetActive(false);
+        }
+
+        private static void CreateCupLayer(
+            string objectName,
+            Transform parent,
+            Vector3 localPosition,
+            float diameter,
+            float depth,
+            Material material)
+        {
+            GameObject cup = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            cup.name = objectName;
+            cup.transform.SetParent(parent, false);
+            cup.transform.localPosition = localPosition;
+            cup.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            cup.transform.localScale = new Vector3(diameter, depth * 0.5f, diameter);
+
+            Renderer renderer = cup.GetComponent<Renderer>();
+            renderer.sharedMaterial = material;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+
+            Collider collider = cup.GetComponent<Collider>();
+            if (collider != null)
+            {
+                collider.enabled = false;
+                Destroy(collider);
+            }
         }
 
         private void RefreshCollider()

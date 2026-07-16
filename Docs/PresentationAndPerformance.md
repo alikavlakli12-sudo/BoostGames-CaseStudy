@@ -13,10 +13,10 @@ existing runtime events. The visual scene can still be rebuilt deterministically
 - Rounded top boxes, receiver boxes, basin panels, and the conveyor use cached procedural meshes.
   Generated mesh objects are marked `DontSave`; serialized mesh specifications recreate them on
   load without duplicating mesh data inside the scene.
-- Exposed upper boxes use a raised color-matched rim, an offset backing, and one cached
-  three-submesh tray surface with nine deep tapered cup walls and darker interiors. Covered boxes
-  keep a clean closed face until they become selectable, matching the reference game's interaction
-  language.
+- Exposed upper boxes replace the closed-box renderers with a slightly tilted molded-plastic tray:
+  a soft shadow, visible lower side, highlighted rounded rim, clean face, nine inset-looking wells,
+  and nine glossy balls. Covered boxes keep a clean closed face until they become selectable,
+  matching the reference game's interaction language.
 - Tray markers, pooled physics balls, conveyor occupants, and filled receiver markers use four
   cached color-specific glossy materials. The geometry and materials remain shared across levels;
   no preview raster is used at runtime.

@@ -40,18 +40,20 @@ namespace MarbleSort.Tests.PlayMode
 
                 Transform trayRoot = initialTrays[index].transform.Find("Exposed Nine-Cup Tray");
                 Assert.That(trayRoot, Is.Not.Null);
-                Assert.That(trayRoot.Find("Raised Tray Backing"), Is.Not.Null);
-                Assert.That(trayRoot.Find("Raised Tray Rim"), Is.Not.Null);
-
-                Transform surface = trayRoot.Find("Nine-Cup Tray Surface");
-                Assert.That(surface, Is.Not.Null);
-                Assert.That(surface.localPosition.z, Is.EqualTo(-0.285f).Within(0.001f));
-                Assert.That(surface.GetComponent<MeshFilter>().sharedMesh.bounds.size.z,
-                    Is.EqualTo(0.07f).Within(0.001f));
+                Assert.That(trayRoot.localEulerAngles.x, Is.EqualTo(7f).Within(0.1f));
+                Assert.That(trayRoot.Find("Preview Tray Shadow"), Is.Not.Null);
+                Assert.That(trayRoot.Find("Molded Tray Lower Side"), Is.Not.Null);
+                Assert.That(trayRoot.Find("Molded Tray Highlight Rim"), Is.Not.Null);
+                Assert.That(trayRoot.Find("Molded Tray Face"), Is.Not.Null);
+                Assert.That(trayRoot.Find("Cup Ring 01"), Is.Not.Null);
+                Assert.That(trayRoot.Find("Cup Interior 01"), Is.Not.Null);
 
                 Transform marker = trayRoot.Find("Nine Marble Markers/Marker 01");
                 Assert.That(marker, Is.Not.Null);
-                Assert.That(marker.localScale.x, Is.EqualTo(0.16f).Within(0.001f));
+                Assert.That(marker.localPosition.z, Is.EqualTo(-0.4f).Within(0.001f));
+                Assert.That(marker.localScale.x, Is.EqualTo(0.18f).Within(0.001f));
+                Assert.That(initialTrays[index].transform.Find("Box Shell")
+                    .GetComponent<Renderer>().enabled, Is.False);
             }
 
             int releasedCount = 0;
@@ -128,6 +130,8 @@ namespace MarbleSort.Tests.PlayMode
             Assert.That(FindView("stacked_lower").VisibleMarkerCount, Is.EqualTo(9));
             Assert.That(FindView("stacked_upper").TrayVisible, Is.False);
             Assert.That(FindView("stacked_upper").VisibleMarkerCount, Is.Zero);
+            Assert.That(FindView("stacked_upper").transform.Find("Box Shell")
+                .GetComponent<Renderer>().enabled, Is.True);
             Assert.That(grid.TrySelectBox("stacked_lower"), Is.True);
 
             yield return WaitForRelease(grid);
@@ -138,6 +142,8 @@ namespace MarbleSort.Tests.PlayMode
             Assert.That(grid.GeneratedBoxCount, Is.EqualTo(1));
             Assert.That(FindView("stacked_upper").TrayVisible, Is.True);
             Assert.That(FindView("stacked_upper").VisibleMarkerCount, Is.EqualTo(9));
+            Assert.That(FindView("stacked_upper").transform.Find("Box Shell")
+                .GetComponent<Renderer>().enabled, Is.False);
         }
 
         [UnityTest]

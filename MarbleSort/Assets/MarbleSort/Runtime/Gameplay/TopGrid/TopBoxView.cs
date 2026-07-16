@@ -18,6 +18,15 @@ namespace MarbleSort.Gameplay.TopGrid
         private float currentScale = 1f;
         private float pulsePhase;
 
+        private const float TraySpacing = 0.24f;
+        private const float TrayCellHalfSize = 0.125f;
+        private const float TrayOuterHalfSize = 0.395f;
+        private const float TrayHoleRadius = 0.113f;
+        private const float TrayInnerRadius = 0.071f;
+        private const float TrayCupDepth = 0.07f;
+        private const float TraySurfaceDepth = -0.285f;
+        private const float TrayBallSize = 0.16f;
+
         public string BoxId { get; private set; } = string.Empty;
 
         public string ColorId { get; private set; } = string.Empty;
@@ -95,20 +104,40 @@ namespace MarbleSort.Gameplay.TopGrid
             trayContentRoot = new GameObject("Exposed Nine-Cup Tray");
             trayContentRoot.transform.SetParent(transform, false);
 
+            GameObject trayBacking = PresentationMeshFactory.CreateRoundedBox(
+                "Raised Tray Backing",
+                trayContentRoot.transform,
+                0.92f,
+                0.92f,
+                0.12f,
+                0.18f,
+                PresentationMaterialLibrary.GetDarkened(material));
+            trayBacking.transform.localPosition = new Vector3(0.018f, -0.025f, -0.13f);
+
+            GameObject trayRim = PresentationMeshFactory.CreateRoundedBox(
+                "Raised Tray Rim",
+                trayContentRoot.transform,
+                0.88f,
+                0.88f,
+                0.1f,
+                0.16f,
+                PresentationMaterialLibrary.GetHighlight(material));
+            trayRim.transform.localPosition = new Vector3(0f, 0f, -0.16f);
+
             GameObject traySurface = PresentationMeshFactory.CreateNineCupTraySurface(
                 "Nine-Cup Tray Surface",
                 trayContentRoot.transform,
-                0.24f,
-                0.12f,
-                0.39f,
-                0.1f,
-                0.082f,
-                0.022f,
+                TraySpacing,
+                TrayCellHalfSize,
+                TrayOuterHalfSize,
+                TrayHoleRadius,
+                TrayInnerRadius,
+                TrayCupDepth,
                 material,
-                PresentationMaterialLibrary.GetDarkened(material),
+                material,
                 PresentationMaterialLibrary.GetCup(material),
-                16);
-            traySurface.transform.localPosition = new Vector3(0f, 0f, -0.195f);
+                24);
+            traySurface.transform.localPosition = new Vector3(0f, 0f, TraySurfaceDepth);
 
             markerRoot = new GameObject("Nine Marble Markers");
             markerRoot.transform.SetParent(trayContentRoot.transform, false);
@@ -119,7 +148,7 @@ namespace MarbleSort.Gameplay.TopGrid
                 marker.name = $"Marker {index + 1:00}";
                 marker.transform.SetParent(markerRoot.transform, false);
                 marker.transform.localPosition = MarbleReleasePattern.GetLocalPosition(index);
-                marker.transform.localScale = Vector3.one * 0.17f;
+                marker.transform.localScale = Vector3.one * TrayBallSize;
                 Renderer markerRenderer = marker.GetComponent<Renderer>();
                 markerRenderer.sharedMaterial = ballMaterial;
                 markerRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;

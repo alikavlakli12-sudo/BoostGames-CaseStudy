@@ -37,6 +37,21 @@ namespace MarbleSort.Tests.PlayMode
                 Assert.That(initialTrays[index].VisibleMarkerCount, Is.EqualTo(9));
                 Assert.That(initialTrays[index].BallMaterial.GetFloat("_Glossiness"),
                     Is.EqualTo(0.72f).Within(0.001f));
+
+                Transform trayRoot = initialTrays[index].transform.Find("Exposed Nine-Cup Tray");
+                Assert.That(trayRoot, Is.Not.Null);
+                Assert.That(trayRoot.Find("Raised Tray Backing"), Is.Not.Null);
+                Assert.That(trayRoot.Find("Raised Tray Rim"), Is.Not.Null);
+
+                Transform surface = trayRoot.Find("Nine-Cup Tray Surface");
+                Assert.That(surface, Is.Not.Null);
+                Assert.That(surface.localPosition.z, Is.EqualTo(-0.285f).Within(0.001f));
+                Assert.That(surface.GetComponent<MeshFilter>().sharedMesh.bounds.size.z,
+                    Is.EqualTo(0.07f).Within(0.001f));
+
+                Transform marker = trayRoot.Find("Nine Marble Markers/Marker 01");
+                Assert.That(marker, Is.Not.Null);
+                Assert.That(marker.localScale.x, Is.EqualTo(0.16f).Within(0.001f));
             }
 
             int releasedCount = 0;

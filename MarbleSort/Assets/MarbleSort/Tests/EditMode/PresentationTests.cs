@@ -40,29 +40,29 @@ namespace MarbleSort.Tests.EditMode
         [Test]
         public void NineCupTrayMesh_IsCachedAndBuildsExactlyNineRecesses()
         {
-            const int segments = 16;
+            const int segments = 24;
             Mesh first = PresentationMeshFactory.GetNineCupTrayMesh(
                 0.24f,
-                0.12f,
-                0.39f,
-                0.1f,
-                0.082f,
-                0.022f,
+                0.125f,
+                0.395f,
+                0.113f,
+                0.071f,
+                0.07f,
                 segments);
             Mesh second = PresentationMeshFactory.GetNineCupTrayMesh(
                 0.24f,
-                0.12f,
-                0.39f,
-                0.1f,
-                0.082f,
-                0.022f,
+                0.125f,
+                0.395f,
+                0.113f,
+                0.071f,
+                0.07f,
                 segments);
 
             Assert.That(second, Is.SameAs(first));
             Assert.That(first.subMeshCount, Is.EqualTo(3));
-            Assert.That(first.bounds.size.x, Is.EqualTo(0.78f).Within(0.001f));
-            Assert.That(first.bounds.size.y, Is.EqualTo(0.78f).Within(0.001f));
-            Assert.That(first.bounds.size.z, Is.EqualTo(0.022f).Within(0.001f));
+            Assert.That(first.bounds.size.x, Is.EqualTo(0.79f).Within(0.001f));
+            Assert.That(first.bounds.size.y, Is.EqualTo(0.79f).Within(0.001f));
+            Assert.That(first.bounds.size.z, Is.EqualTo(0.07f).Within(0.001f));
             Assert.That(first.GetTriangles(1).Length, Is.EqualTo(9 * segments * 6));
             Assert.That(first.GetTriangles(2).Length, Is.EqualTo(9 * segments * 3));
         }

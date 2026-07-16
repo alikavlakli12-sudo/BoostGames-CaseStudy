@@ -37,4 +37,7 @@ Unity-generated folders such as `Library`, `Temp`, `Logs`, `Obj`, `Build`, and `
 
 ## Current milestone
 
-Project foundation. Gameplay features will be added in feature-sized, independently verifiable commits.
+Top-grid and physical-marble gameplay slice. JSON levels now build the runtime grid, only exposed
+boxes accept input, each selection releases nine pooled rigidbody marbles, and stacked columns
+collapse before the next box becomes selectable. Conveyor admission and receiver collection are the
+next feature milestones.

@@ -6,6 +6,10 @@ namespace MarbleSort.Validation
 {
     public static class LevelCatalogValidator
     {
+        private static readonly HashSet<string> SupportedColors = new HashSet<string>(
+            new[] { "green", "blue", "orange", "yellow" },
+            StringComparer.OrdinalIgnoreCase);
+
         public static ValidationReport Validate(LevelCatalogData catalog)
         {
             ValidationReport report = new ValidationReport();
@@ -280,7 +284,17 @@ namespace MarbleSort.Validation
                 return string.Empty;
             }
 
-            return color.Trim().ToLowerInvariant();
+            string normalized = color.Trim().ToLowerInvariant();
+            if (!SupportedColors.Contains(normalized))
+            {
+                report.Add(
+                    ValidationSeverity.Error,
+                    "COLOR_UNSUPPORTED",
+                    context,
+                    $"Color '{color}' is not supported. Use green, blue, orange, or yellow.");
+            }
+
+            return normalized;
         }
 
         private static void AddCount(Dictionary<string, int> counts, string key)

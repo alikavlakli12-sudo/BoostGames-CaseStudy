@@ -2,6 +2,8 @@ using System.Collections.Generic;
 using MarbleSort.Data;
 using MarbleSort.Gameplay.Conveyor;
 using MarbleSort.Gameplay.Flow;
+using MarbleSort.Gameplay.Marbles;
+using MarbleSort.Gameplay.TopGrid;
 using MarbleSort.Session;
 using MarbleSort.Validation;
 using NUnit.Framework;
@@ -49,6 +51,18 @@ namespace MarbleSort.Tests.EditMode
 
             Assert.That(report.HasErrors, Is.True);
             Assert.That(ContainsIssue(report, "LEVEL_COLOR_RATIO"), Is.True);
+        }
+
+        [Test]
+        public void Catalog_WithUnsupportedColor_ReportsClearError()
+        {
+            LevelCatalogData catalog = CreateValidCatalog();
+            catalog.levels[0].topGrid.boxes[0].color = "purple";
+
+            ValidationReport report = LevelCatalogValidator.Validate(catalog);
+
+            Assert.That(report.HasErrors, Is.True);
+            Assert.That(ContainsIssue(report, "COLOR_UNSUPPORTED"), Is.True);
         }
 
         [Test]
@@ -108,6 +122,82 @@ namespace MarbleSort.Tests.EditMode
             Assert.That(pose.Position.x, Is.EqualTo(0f).Within(0.0001f));
             Assert.That(pose.Position.y, Is.EqualTo(turnRadius).Within(0.0001f));
             Assert.That(Vector3.Dot(pose.Tangent, Vector3.left), Is.EqualTo(1f).Within(0.0001f));
+        }
+
+        [Test]
+        public void TopGrid_OnlyTheLowestBoxInEachColumnIsExposed()
+        {
+            TopGridState grid = new TopGridState(CreateStackedTopGrid());
+
+            Assert.That(grid.IsExposed("lower_green"), Is.True);
+            Assert.That(grid.IsExposed("upper_blue"), Is.False);
+            Assert.That(grid.IsExposed("single_yellow"), Is.True);
+            Assert.That(grid.ActiveCount, Is.EqualTo(3));
+        }
+
+        [Test]
+        public void TopGrid_RemovingAnExposedBoxCollapsesAndExposesTheNextBox()
+        {
+            TopGridState grid = new TopGridState(CreateStackedTopGrid());
+
+            bool coveredRemoval = grid.TryRemoveExposed("upper_blue", out TopBoxRemovalResult coveredResult);
+            bool exposedRemoval = grid.TryRemoveExposed("lower_green", out TopBoxRemovalResult result);
+
+            Assert.That(coveredRemoval, Is.False);
+            Assert.That(coveredResult, Is.Null);
+            Assert.That(exposedRemoval, Is.True);
+            Assert.That(result.Moves.Count, Is.EqualTo(1));
+            Assert.That(result.Moves[0].BoxId, Is.EqualTo("upper_blue"));
+            Assert.That(result.Moves[0].FromRow, Is.EqualTo(1));
+            Assert.That(result.Moves[0].ToRow, Is.EqualTo(0));
+            Assert.That(grid.GetBox("upper_blue").CurrentRow, Is.EqualTo(0));
+            Assert.That(grid.IsExposed("upper_blue"), Is.True);
+            Assert.That(grid.ActiveCount, Is.EqualTo(2));
+        }
+
+        [Test]
+        public void MarbleReleasePattern_ContainsExactlyNineUniquePositions()
+        {
+            HashSet<Vector3> positions = new HashSet<Vector3>();
+            for (int index = 0; index < MarbleReleasePattern.MarbleCount; index++)
+            {
+                positions.Add(MarbleReleasePattern.GetLocalPosition(index));
+            }
+
+            Assert.That(MarbleReleasePattern.MarbleCount, Is.EqualTo(9));
+            Assert.That(TopGridController.MarblesPerBox, Is.EqualTo(9));
+            Assert.That(positions.Count, Is.EqualTo(9));
+        }
+
+        [Test]
+        public void MarblePool_ReturnedMarbleIsReusedAndConstrainedToGameplayPlane()
+        {
+            GameObject poolObject = new GameObject("Marble Pool Test");
+            poolObject.SetActive(false);
+            MarblePool pool = poolObject.AddComponent<MarblePool>();
+            pool.Configure(null, 1, 0.2f, -5f);
+            poolObject.SetActive(true);
+
+            try
+            {
+                MarbleActor first = pool.Rent("green", Vector3.zero, Vector3.down);
+                int createdAfterFirstRent = pool.CreatedCount;
+
+                Assert.That(
+                    (first.Body.constraints & RigidbodyConstraints.FreezePositionZ) != 0,
+                    Is.True);
+                Assert.That(pool.Return(first), Is.True);
+
+                MarbleActor second = pool.Rent("blue", Vector3.one, Vector3.zero);
+
+                Assert.That(second, Is.SameAs(first));
+                Assert.That(pool.CreatedCount, Is.EqualTo(createdAfterFirstRent));
+                Assert.That(pool.ActiveCount, Is.EqualTo(1));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(poolObject);
+            }
         }
 
         private static bool ContainsIssue(ValidationReport report, string code)
@@ -170,8 +260,8 @@ namespace MarbleSort.Tests.EditMode
                         {
                             new TopBoxData
                             {
-                                id = $"{prefix}_top_red",
-                                color = "red",
+                                id = $"{prefix}_top_green",
+                                color = "green",
                                 column = 0,
                                 row = 0
                             }
@@ -179,15 +269,49 @@ namespace MarbleSort.Tests.EditMode
                     },
                     receiverLanes = new[]
                     {
-                        CreateLane(prefix, 0, "red"),
-                        CreateLane(prefix, 1, "red"),
-                        CreateLane(prefix, 2, "red"),
+                        CreateLane(prefix, 0, "green"),
+                        CreateLane(prefix, 1, "green"),
+                        CreateLane(prefix, 2, "green"),
                         CreateLane(prefix, 3)
                     }
                 };
             }
 
             return catalog;
+        }
+
+        private static TopGridData CreateStackedTopGrid()
+        {
+            return new TopGridData
+            {
+                columns = 2,
+                rows = 3,
+                cellSpacing = 1f,
+                boxes = new[]
+                {
+                    new TopBoxData
+                    {
+                        id = "lower_green",
+                        color = "green",
+                        column = 0,
+                        row = 0
+                    },
+                    new TopBoxData
+                    {
+                        id = "upper_blue",
+                        color = "blue",
+                        column = 0,
+                        row = 1
+                    },
+                    new TopBoxData
+                    {
+                        id = "single_yellow",
+                        color = "yellow",
+                        column = 1,
+                        row = 0
+                    }
+                }
+            };
         }
 
         private static ReceiverLaneData CreateLane(string prefix, int index, params string[] colors)

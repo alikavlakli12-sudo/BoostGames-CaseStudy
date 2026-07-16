@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using MarbleSort.Core;
 using MarbleSort.Gameplay.Conveyor;
+using MarbleSort.Gameplay.Marbles;
+using MarbleSort.Gameplay.TopGrid;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -31,18 +33,22 @@ namespace MarbleSort.Editor
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             scene.name = "Main";
 
-            CreateCamera(background.color);
+            Camera camera = CreateCamera(background.color);
             CreateLighting();
 
             GameObject root = new GameObject("Marble Sort");
             GameObject systems = new GameObject("Systems");
             systems.transform.SetParent(root.transform);
-            systems.AddComponent<GameBootstrap>();
+            GameBootstrap bootstrap = systems.AddComponent<GameBootstrap>();
+            MarblePalette palette = systems.AddComponent<MarblePalette>();
+            palette.Configure(green, blue, orange, yellow);
+            MarblePool marblePool = systems.AddComponent<MarblePool>();
+            marblePool.Configure(palette, 72, 0.22f, -8.5f);
 
             GameObject board = new GameObject("Board");
             board.transform.SetParent(root.transform);
             CreateBasin(board.transform, basin, border);
-            CreateTopGridPreview(board.transform, green, blue, orange, yellow);
+            CreateTopGrid(board.transform, bootstrap, marblePool, palette, camera);
             CreateConveyor(board.transform, conveyor, conveyorSlot);
             CreateReceiverPreview(board.transform, conveyorSlot, green, blue, orange, yellow);
 
@@ -66,7 +72,7 @@ namespace MarbleSort.Editor
         private static void ConfigureProjectSettings()
         {
             EditorSettings.serializationMode = SerializationMode.ForceText;
-            EditorSettings.externalVersionControl = "Visible Meta Files";
+            VersionControlSettings.mode = "Visible Meta Files";
             PlayerSettings.companyName = "Case Study";
             PlayerSettings.productName = "Marble Sort";
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
@@ -78,7 +84,7 @@ namespace MarbleSort.Editor
             PlayerSettings.colorSpace = ColorSpace.Linear;
         }
 
-        private static void CreateCamera(Color backgroundColor)
+        private static Camera CreateCamera(Color backgroundColor)
         {
             GameObject cameraObject = new GameObject("Main Camera");
             Camera camera = cameraObject.AddComponent<Camera>();
@@ -91,6 +97,7 @@ namespace MarbleSort.Editor
             camera.backgroundColor = backgroundColor;
             camera.nearClipPlane = 0.1f;
             camera.farClipPlane = 50f;
+            return camera;
         }
 
         private static void CreateLighting()
@@ -160,45 +167,31 @@ namespace MarbleSort.Editor
                 Quaternion.Euler(0f, 0f, 13f),
                 border,
                 true);
+
+            GameObject entranceGate = CreateVisual(
+                "Temporary Entrance Gate",
+                PrimitiveType.Cube,
+                basinRoot.transform,
+                new Vector3(0f, -1.58f, 0f),
+                new Vector3(0.68f, 0.18f, 0.6f),
+                Quaternion.identity,
+                border,
+                true);
+            entranceGate.GetComponent<Renderer>().enabled = false;
         }
 
-        private static void CreateTopGridPreview(
+        private static void CreateTopGrid(
             Transform parent,
-            Material green,
-            Material blue,
-            Material orange,
-            Material yellow)
+            GameBootstrap bootstrap,
+            MarblePool marblePool,
+            MarblePalette palette,
+            Camera camera)
         {
-            GameObject gridRoot = new GameObject("Top Grid Preview");
+            GameObject gridRoot = new GameObject("Runtime Top Grid");
             gridRoot.transform.SetParent(parent);
             gridRoot.transform.localPosition = new Vector3(0f, 1.2f, 0f);
-
-            Material[] colors = { green, blue, orange, yellow, blue, green, yellow, orange };
-            Vector2Int[] cells =
-            {
-                new Vector2Int(0, 0),
-                new Vector2Int(0, 1),
-                new Vector2Int(1, 0),
-                new Vector2Int(1, 1),
-                new Vector2Int(2, 0),
-                new Vector2Int(2, 1),
-                new Vector2Int(3, 0),
-                new Vector2Int(3, 1)
-            };
-
-            for (int index = 0; index < cells.Length; index++)
-            {
-                Vector2Int cell = cells[index];
-                CreateVisual(
-                    $"Top Box {index + 1:00}",
-                    PrimitiveType.Cube,
-                    gridRoot.transform,
-                    new Vector3(-1.5f + cell.x, cell.y, 0f),
-                    new Vector3(0.88f, 0.88f, 0.4f),
-                    Quaternion.identity,
-                    colors[index],
-                    false);
-            }
+            TopGridController controller = gridRoot.AddComponent<TopGridController>();
+            controller.Configure(bootstrap, marblePool, palette, camera);
         }
 
         private static void CreateConveyor(Transform parent, Material conveyor, Material conveyorSlot)

@@ -18,6 +18,8 @@ Status: complete and verified as the first project milestone.
 - Add marble pooling, constrained rigidbodies, collision layers, and basin containment.
 - Gate: repeated selections allocate no new marble objects after pool warm-up and never allow a covered box to be selected.
 
+Status: complete and verified on `codex/top-grid-marble-spawning` with EditMode and PlayMode coverage.
+
 ## Day 3 — Conveyor admission
 
 - Separate physical basin marbles from logical conveyor occupants.

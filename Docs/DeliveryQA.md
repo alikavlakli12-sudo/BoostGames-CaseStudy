@@ -57,7 +57,7 @@ The optional smoke player is written to `MarbleSort/Builds/QA/` and remains igno
 Final local verification on 2026-07-17:
 
 - Delivery readiness: 12/12 checks passed.
-- EditMode: 41/41 tests passed.
+- EditMode: 45/45 tests passed.
 - PlayMode: 18/18 tests passed.
 - Desktop smoke build: succeeded as a portrait-windowed 64-bit universal macOS application
   (Apple Silicon and Intel).

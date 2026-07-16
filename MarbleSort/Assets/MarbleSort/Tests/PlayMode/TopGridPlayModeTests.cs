@@ -40,18 +40,22 @@ namespace MarbleSort.Tests.PlayMode
 
                 Transform trayRoot = initialTrays[index].transform.Find("Exposed Nine-Cup Tray");
                 Assert.That(trayRoot, Is.Not.Null);
-                Assert.That(trayRoot.localEulerAngles.x, Is.EqualTo(7f).Within(0.1f));
-                Assert.That(trayRoot.Find("Preview Tray Shadow"), Is.Not.Null);
-                Assert.That(trayRoot.Find("Molded Tray Lower Side"), Is.Not.Null);
-                Assert.That(trayRoot.Find("Molded Tray Highlight Rim"), Is.Not.Null);
-                Assert.That(trayRoot.Find("Molded Tray Face"), Is.Not.Null);
-                Assert.That(trayRoot.Find("Cup Ring 01"), Is.Not.Null);
-                Assert.That(trayRoot.Find("Cup Interior 01"), Is.Not.Null);
+                Assert.That(trayRoot.localRotation, Is.EqualTo(Quaternion.identity));
+
+                Transform trayArtwork = trayRoot.Find("Hyper Realistic 3x3 Tray");
+                Assert.That(trayArtwork, Is.Not.Null);
+                SpriteRenderer trayRenderer = trayArtwork.GetComponent<SpriteRenderer>();
+                Assert.That(trayRenderer, Is.Not.Null);
+                Assert.That(trayRenderer.sprite.name, Does.StartWith("Top Tray "));
+                Assert.That(trayRenderer.sprite.texture.wrapMode, Is.EqualTo(TextureWrapMode.Clamp));
+                Assert.That(trayRenderer.sprite.texture.mipmapCount, Is.EqualTo(1));
 
                 Transform marker = trayRoot.Find("Nine Marble Markers/Marker 01");
                 Assert.That(marker, Is.Not.Null);
-                Assert.That(marker.localPosition.z, Is.EqualTo(-0.4f).Within(0.001f));
-                Assert.That(marker.localScale.x, Is.EqualTo(0.18f).Within(0.001f));
+                Assert.That(marker.localPosition.z, Is.EqualTo(-0.36f).Within(0.001f));
+                SpriteRenderer markerRenderer = marker.GetComponent<SpriteRenderer>();
+                Assert.That(markerRenderer, Is.Not.Null);
+                Assert.That(markerRenderer.sprite.name, Does.StartWith("Receiver Ball "));
                 Assert.That(initialTrays[index].transform.Find("Box Shell")
                     .GetComponent<Renderer>().enabled, Is.False);
             }
@@ -147,7 +151,7 @@ namespace MarbleSort.Tests.PlayMode
         }
 
         [UnityTest]
-        public IEnumerator HighestLoadLevel_BuildsGlossyTraysForEveryProductionColor()
+        public IEnumerator HighestLoadLevel_BuildsHyperRealisticTraysForEveryProductionColor()
         {
             SceneManager.LoadScene("Main", LoadSceneMode.Single);
             yield return null;

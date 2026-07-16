@@ -46,3 +46,24 @@ Prompt brief:
 > text, no logo, no extra objects, and no external cast shadow. Produce matching green, blue,
 > orange, and yellow variants. Create each matching glossy ball separately with the same upper-left
 > oval highlight, rounded shading, centered framing, and no cast shadow.
+
+## Exposed 3×3 trays
+
+- Project assets: `MarbleSort/Assets/MarbleSort/Resources/Presentation/TopTrays/TopTray_*.png`
+- Created: 2026-07-17
+- Creation mode: built-in image editing from the approved 3×3 preview followed by deterministic
+  chroma-key removal
+- Ownership/licensing note: generated specifically for this case-study prototype; no third-party
+  artwork was added.
+- Runtime treatment: four transparent empty molded tray bases. The nine ball positions reuse the
+  receiver ball sprites as independent layers, preserving the original selection, one-by-one
+  release, and physics behavior.
+
+Prompt brief:
+
+> Preserve the approved square 3×3 tray's exact geometry, camera angle, rounded molded rim,
+> visible darker lower side, studio lighting, and premium hyper-realistic casual-game finish.
+> Remove all nine balls to reveal nine deep color-matched circular wells. Center one tray on a
+> perfectly flat #FF00FF chroma-key background with even padding and no external cast shadow,
+> floor, text, logo, watermark, or extra objects. Produce matching green, blue, orange, and yellow
+> versions while changing only the tray color.

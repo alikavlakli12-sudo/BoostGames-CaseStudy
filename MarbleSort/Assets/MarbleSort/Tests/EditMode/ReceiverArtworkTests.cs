@@ -21,5 +21,20 @@ namespace MarbleSort.Tests.EditMode
             Assert.That(artwork.Tray.texture.wrapMode, Is.EqualTo(TextureWrapMode.Clamp));
             Assert.That(artwork.Tray.texture.mipmapCount, Is.EqualTo(1));
         }
+
+        [TestCase("green")]
+        [TestCase("blue")]
+        [TestCase("orange")]
+        [TestCase("yellow")]
+        public void EverySupportedColor_LoadsTrimmedTopTrayAndSharedBallArtwork(string colorId)
+        {
+            Assert.That(TopTrayArtworkLibrary.TryGet(colorId, out TopTrayArtwork topTray), Is.True);
+            Assert.That(ReceiverArtworkLibrary.TryGet(colorId, out ReceiverArtwork receiver), Is.True);
+            Assert.That(topTray.IsValid, Is.True);
+            Assert.That(topTray.Tray.rect.width / topTray.Tray.rect.height, Is.InRange(0.99f, 1.02f));
+            Assert.That(topTray.Tray.texture.wrapMode, Is.EqualTo(TextureWrapMode.Clamp));
+            Assert.That(topTray.Tray.texture.mipmapCount, Is.EqualTo(1));
+            Assert.That(topTray.Ball, Is.SameAs(receiver.Ball));
+        }
     }
 }

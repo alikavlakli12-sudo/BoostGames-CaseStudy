@@ -69,14 +69,14 @@ namespace MarbleSort.Presentation
                 return false;
             }
 
-            Sprite tray = CreateSprite(trayTexture, crop.Tray, $"Receiver Tray {assetSuffix}");
-            Sprite ball = CreateSprite(ballTexture, crop.Ball, $"Receiver Ball {assetSuffix}");
+            Sprite tray = CreateTrimmedSprite(trayTexture, crop.Tray, $"Receiver Tray {assetSuffix}");
+            Sprite ball = CreateTrimmedSprite(ballTexture, crop.Ball, $"Receiver Ball {assetSuffix}");
             artwork = new ReceiverArtwork(tray, ball);
             Cache[colorId] = artwork;
             return true;
         }
 
-        private static Sprite CreateSprite(Texture2D texture, Rect normalizedRect, string spriteName)
+        internal static Sprite CreateTrimmedSprite(Texture2D texture, Rect normalizedRect, string spriteName)
         {
             Rect requestedRect = new Rect(
                 normalizedRect.x * texture.width,
@@ -102,7 +102,7 @@ namespace MarbleSort.Presentation
             return sprite;
         }
 
-        private static Rect Normalize(Rect pixelRect, float textureWidth, float textureHeight)
+        internal static Rect Normalize(Rect pixelRect, float textureWidth, float textureHeight)
         {
             return new Rect(
                 pixelRect.x / textureWidth,

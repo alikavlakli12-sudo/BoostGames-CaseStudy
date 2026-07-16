@@ -330,15 +330,22 @@ namespace MarbleSort.Tests.EditMode
                                 color = "green",
                                 column = 0,
                                 row = 0
+                            },
+                            new TopBoxData
+                            {
+                                id = $"{prefix}_top_blue",
+                                color = "blue",
+                                column = 1,
+                                row = 0
                             }
                         }
                     },
                     receiverLanes = new[]
                     {
-                        CreateLane(prefix, 0, "green"),
-                        CreateLane(prefix, 1, "green"),
+                        CreateLane(prefix, 0, "green", "blue"),
+                        CreateLane(prefix, 1, "blue", "green"),
                         CreateLane(prefix, 2, "green"),
-                        CreateLane(prefix, 3)
+                        CreateLane(prefix, 3, "blue")
                     }
                 };
             }

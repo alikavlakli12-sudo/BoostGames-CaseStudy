@@ -44,6 +44,8 @@ namespace MarbleSort.Gameplay.Flow
 
         public int CurrentLevelIndex => bootstrap?.Session?.CurrentLevelIndex ?? -1;
 
+        public bool IsInitialized { get; private set; }
+
         public void Configure(
             GameBootstrap gameBootstrap,
             TopGridController topGridController,
@@ -96,6 +98,18 @@ namespace MarbleSort.Gameplay.Flow
             LoadLevel(bootstrap.Session.CurrentLevelIndex);
         }
 
+        public bool TryLoadLevel(int levelIndex)
+        {
+            if (!IsInitialized || bootstrap?.Catalog?.levels == null || bootstrap.Session == null ||
+                levelIndex < 0 || levelIndex >= bootstrap.Catalog.levels.Length)
+            {
+                return false;
+            }
+
+            bootstrap.Session.SelectLevel(levelIndex);
+            return LoadLevel(levelIndex);
+        }
+
         public void AdvanceToNextLevel()
         {
             if (bootstrap?.Session == null)
@@ -122,6 +136,7 @@ namespace MarbleSort.Gameplay.Flow
             hud?.Configure(this);
             ShowPlayingHud();
             EnsureSnapshotCapacity();
+            IsInitialized = true;
             Reevaluate();
         }
 
@@ -175,13 +190,13 @@ namespace MarbleSort.Gameplay.Flow
             }
         }
 
-        private void LoadLevel(int levelIndex)
+        private bool LoadLevel(int levelIndex)
         {
             if (bootstrap?.Catalog?.levels == null ||
                 levelIndex < 0 || levelIndex >= bootstrap.Catalog.levels.Length)
             {
                 Debug.LogError($"Cannot load Marble Sort level index {levelIndex}.", this);
-                return;
+                return false;
             }
 
             if (advanceRoutine != null)
@@ -206,7 +221,7 @@ namespace MarbleSort.Gameplay.Flow
                 Debug.LogError($"Failed to build '{level.displayName}'.", this);
                 enabled = false;
                 suppressEvaluation = false;
-                return;
+                return false;
             }
 
             receivers.SetCollectionEnabled(true);
@@ -216,6 +231,7 @@ namespace MarbleSort.Gameplay.Flow
             StatusChanged?.Invoke(Status);
             LevelStarted?.Invoke(levelIndex);
             Reevaluate();
+            return true;
         }
 
         private void SetGameplayEnabled(bool value)

@@ -30,3 +30,11 @@ receiver box count == top box count * 3
 ```
 
 Each top box creates nine marbles. Each receiver box accepts three marbles.
+
+## Production authoring boundary
+
+`levels.json` is the single source of truth. The custom editor works on an in-memory serialized
+draft, runs the same structural validator used at runtime, and invokes a deterministic search over
+exposed top-box choices and receiver heads. Only a structurally valid, solvable draft can be saved
+or previewed. Preview always starts `Main.unity` and asks the runtime level-flow controller to
+rebuild the selected level, so authoring does not require scene edits or level-specific prefabs.

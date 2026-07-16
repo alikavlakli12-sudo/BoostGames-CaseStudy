@@ -158,6 +158,79 @@ namespace MarbleSort.Tests.PlayMode
         }
 
         [UnityTest]
+        public IEnumerator EditorPreviewSelection_LoadsEveryProductionLevelAndRejectsInvalidIndices()
+        {
+            SceneManager.LoadScene("Main", LoadSceneMode.Single);
+            yield return null;
+
+            GameBootstrap bootstrap = Object.FindFirstObjectByType<GameBootstrap>();
+            LevelFlowController flow = Object.FindFirstObjectByType<LevelFlowController>();
+            ReceiverQueueController receivers = Object.FindFirstObjectByType<ReceiverQueueController>();
+            TopGridController topGrid = Object.FindFirstObjectByType<TopGridController>();
+
+            Assert.That(flow.IsInitialized, Is.True);
+            for (int levelIndex = 0; levelIndex < bootstrap.Catalog.levels.Length; levelIndex++)
+            {
+                int expectedReceiverCount = 0;
+                for (int laneIndex = 0;
+                     laneIndex < bootstrap.Catalog.levels[levelIndex].receiverLanes.Length;
+                     laneIndex++)
+                {
+                    expectedReceiverCount +=
+                        bootstrap.Catalog.levels[levelIndex].receiverLanes[laneIndex].boxes.Length;
+                }
+
+                Assert.That(flow.TryLoadLevel(levelIndex), Is.True);
+                Assert.That(flow.Status, Is.EqualTo(LevelFlowStatus.Playing));
+                Assert.That(bootstrap.Session.CurrentLevelIndex, Is.EqualTo(levelIndex));
+                Assert.That(
+                    topGrid.GeneratedBoxCount,
+                    Is.EqualTo(bootstrap.Catalog.levels[levelIndex].topGrid.boxes.Length));
+                Assert.That(receivers.State.TotalBoxCount, Is.EqualTo(expectedReceiverCount));
+                Assert.That(receivers.GeneratedBoxCount, Is.EqualTo(expectedReceiverCount));
+                Assert.That(receivers.State.CompletedBoxCount, Is.Zero);
+            }
+
+            Assert.That(flow.TryLoadLevel(-1), Is.False);
+            Assert.That(flow.TryLoadLevel(bootstrap.Catalog.levels.Length), Is.False);
+            Assert.That(bootstrap.Session.CurrentLevelIndex, Is.EqualTo(4));
+        }
+
+        [UnityTest]
+        public IEnumerator FinalProductionLevel_RetryRestoresItAndCompletionWrapsToLevelOne()
+        {
+            SceneManager.LoadScene("Main", LoadSceneMode.Single);
+            yield return null;
+
+            GameBootstrap bootstrap = Object.FindFirstObjectByType<GameBootstrap>();
+            LevelFlowController flow = Object.FindFirstObjectByType<LevelFlowController>();
+            ReceiverQueueController receivers = Object.FindFirstObjectByType<ReceiverQueueController>();
+            TopGridController topGrid = Object.FindFirstObjectByType<TopGridController>();
+
+            Assert.That(flow.TryLoadLevel(4), Is.True);
+            Assert.That(topGrid.GeneratedBoxCount, Is.EqualTo(8));
+            Assert.That(receivers.State.TotalBoxCount, Is.EqualTo(24));
+
+            flow.RetryCurrentLevel();
+
+            Assert.That(bootstrap.Session.CurrentLevelIndex, Is.EqualTo(4));
+            Assert.That(flow.Status, Is.EqualTo(LevelFlowStatus.Playing));
+            Assert.That(topGrid.GeneratedBoxCount, Is.EqualTo(8));
+            Assert.That(receivers.State.TotalBoxCount, Is.EqualTo(24));
+
+            CompleteEveryReceiver(receivers);
+            flow.Reevaluate();
+            Assert.That(flow.Status, Is.EqualTo(LevelFlowStatus.Complete));
+
+            flow.AdvanceToNextLevel();
+
+            Assert.That(bootstrap.Session.CurrentLevelIndex, Is.Zero);
+            Assert.That(flow.Status, Is.EqualTo(LevelFlowStatus.Playing));
+            Assert.That(topGrid.GeneratedBoxCount, Is.EqualTo(2));
+            Assert.That(receivers.State.TotalBoxCount, Is.EqualTo(6));
+        }
+
+        [UnityTest]
         public IEnumerator LevelOne_PlaysFromTopBoxesThroughAutomaticLevelAdvance()
         {
             SceneManager.LoadScene("Main", LoadSceneMode.Single);
@@ -236,6 +309,21 @@ namespace MarbleSort.Tests.PlayMode
             }
 
             Assert.That(topGrid.InputLocked, Is.False, "Top-box release timed out.");
+        }
+
+        private static void CompleteEveryReceiver(ReceiverQueueController receivers)
+        {
+            for (int laneIndex = 0; laneIndex < receivers.State.Lanes.Count; laneIndex++)
+            {
+                while (receivers.State.Lanes[laneIndex].ActiveBox != null)
+                {
+                    string colorId = receivers.State.Lanes[laneIndex].ActiveBox.ColorId;
+                    for (int count = 0; count < ReceiverBoxState.Capacity; count++)
+                    {
+                        Assert.That(receivers.State.TryAccept(laneIndex, colorId, out _), Is.True);
+                    }
+                }
+            }
         }
 
         private static int FindOccupiedSlot(StadiumConveyorController conveyor, string colorId)

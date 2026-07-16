@@ -44,6 +44,10 @@ Status: complete and verified on `codex/receivers-level-flow` with EditMode, Pla
 - Run solvability and count checks on every level.
 - Gate: all production JSON passes validation and every level can be completed from a clean launch.
 
+Status: complete and verified on `codex/production-levels-editor` with deterministic solvability
+analysis, a 2/3/4/6/8-box difficulty curve, safe JSON authoring, direct selected-level preview,
+27 EditMode tests, and 12 PlayMode tests covering all five clean runtime builds.
+
 ## Day 6 — Presentation and performance
 
 - Replace blockout visuals with cohesive prototype art while retaining reference composition.

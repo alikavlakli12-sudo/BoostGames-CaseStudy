@@ -5,6 +5,7 @@ using MarbleSort.Gameplay.Flow;
 using MarbleSort.Gameplay.Marbles;
 using MarbleSort.Gameplay.Receivers;
 using MarbleSort.Gameplay.TopGrid;
+using MarbleSort.UI;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -43,6 +44,7 @@ namespace MarbleSort.Tests.PlayMode
             ConveyorAdmissionController admission = Object.FindFirstObjectByType<ConveyorAdmissionController>();
             ReceiverQueueController receivers = Object.FindFirstObjectByType<ReceiverQueueController>();
             MarblePool pool = Object.FindFirstObjectByType<MarblePool>();
+            GameHudView hud = Object.FindFirstObjectByType<GameHudView>();
 
             for (int count = 0; count < ReceiverBoxState.Capacity; count++)
             {
@@ -54,6 +56,8 @@ namespace MarbleSort.Tests.PlayMode
             }
 
             Assert.That(receivers.State.CompletedBoxCount, Is.EqualTo(1));
+            Assert.That(hud.CompletedTrayCount, Is.EqualTo(1));
+            Assert.That(hud.TotalTrayCount, Is.EqualTo(6));
             Assert.That(receivers.State.Lanes[0].ActiveBox.ColorId, Is.EqualTo("blue"));
             Assert.That(receivers.State.Lanes[0].ActiveBox.FillCount, Is.Zero);
             Assert.That(conveyor.State.OccupiedCount, Is.Zero);

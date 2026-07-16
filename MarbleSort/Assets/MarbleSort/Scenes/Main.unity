@@ -2361,7 +2361,7 @@ MonoBehaviour:
   receivers: {fileID: 903724222}
   marblePool: {fileID: 885216809}
   hud: {fileID: 1196227386}
-  completionAdvanceDelay: 1.2
+  completionAdvanceDelay: 1.6
 --- !u!114 &885216809
 MonoBehaviour:
   m_ObjectHideFlags: 0

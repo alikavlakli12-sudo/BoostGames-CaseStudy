@@ -67,7 +67,7 @@ platform-guarded haptics, runtime performance diagnostics, 31 EditMode tests, an
 - Review commit history and repository contents for secrets, caches, oversized files, and accidental artifacts.
 - Gate: a reviewer can clone, open with the required Unity version, run the scene, run tests, and build without undocumented steps.
 
-Status: complete on `delivery-qa` with a 12-check delivery validator, 35 EditMode tests, 16
+Status: complete on `delivery-qa` with a 12-check delivery validator, 35 EditMode tests, 17
 PlayMode tests, a successful universal macOS smoke build and boot, explicit reviewer instructions,
 known limitations, and clean-clone verification.
 

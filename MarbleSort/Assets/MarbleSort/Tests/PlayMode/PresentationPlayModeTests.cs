@@ -2,6 +2,8 @@ using System.Collections;
 using MarbleSort.Gameplay.Conveyor;
 using MarbleSort.Gameplay.Flow;
 using MarbleSort.Gameplay.Marbles;
+using MarbleSort.Gameplay.Receivers;
+using MarbleSort.Gameplay.TopGrid;
 using MarbleSort.Presentation;
 using MarbleSort.UI;
 using NUnit.Framework;
@@ -39,6 +41,9 @@ namespace MarbleSort.Tests.PlayMode
                 background.transform.localScale.y,
                 Is.GreaterThanOrEqualTo(responsive.CurrentOrthographicSize * 2f));
             Assert.That(hud, Is.Not.Null);
+            Assert.That(hud.HintVisible, Is.True);
+            Assert.That(hud.CompletedTrayCount, Is.Zero);
+            Assert.That(hud.TotalTrayCount, Is.EqualTo(6));
             Assert.That(listener, Is.Not.Null);
             Assert.That(performance, Is.Not.Null);
             Assert.That(Application.targetFrameRate, Is.EqualTo(60));
@@ -59,8 +64,10 @@ namespace MarbleSort.Tests.PlayMode
             Assert.That(grid.TrySelectBox("l01_top_yellow_01"), Is.True);
             yield return null;
 
+            GameHudView hud = Object.FindFirstObjectByType<GameHudView>();
             Assert.That(feedback.BurstEventCount, Is.GreaterThan(previousBursts));
             Assert.That(feedback.BurstParticles.particleCount, Is.GreaterThan(0));
+            Assert.That(hud.HintVisible, Is.False);
             Assert.That(Object.FindObjectsByType<GameFeedbackController>(FindObjectsSortMode.None).Length, Is.EqualTo(1));
             Assert.That(Object.FindObjectsByType<ParticleSystem>(FindObjectsSortMode.None).Length, Is.EqualTo(1));
         }
@@ -74,6 +81,7 @@ namespace MarbleSort.Tests.PlayMode
             LevelFlowController flow = Object.FindFirstObjectByType<LevelFlowController>();
             MarblePool pool = Object.FindFirstObjectByType<MarblePool>();
             GameFeedbackController feedback = Object.FindFirstObjectByType<GameFeedbackController>();
+            GameHudView hud = Object.FindFirstObjectByType<GameHudView>();
 
             Assert.That(flow.TryLoadLevel(4), Is.True);
             yield return null;
@@ -85,12 +93,42 @@ namespace MarbleSort.Tests.PlayMode
             Assert.That(flow.TryLoadLevel(4), Is.True);
             yield return null;
 
+            Assert.That(hud.HintVisible, Is.False);
+            Assert.That(hud.CompletedTrayCount, Is.Zero);
+            Assert.That(hud.TotalTrayCount, Is.EqualTo(24));
             Assert.That(pool.CreatedCount, Is.EqualTo(createdMarbles));
             Assert.That(createdMarbles, Is.EqualTo(72));
             Assert.That(PresentationMeshFactory.CachedMeshCount, Is.EqualTo(cachedMeshes));
             Assert.That(feedback.BurstParticles, Is.SameAs(particles));
             Assert.That(Object.FindFirstObjectByType<AudioSource>(), Is.SameAs(audio));
             Assert.That(Object.FindObjectsByType<ParticleSystem>(FindObjectsSortMode.None).Length, Is.EqualTo(1));
+        }
+
+        [UnityTest]
+        public IEnumerator EveryProductionLevel_KeepsInteractiveContentInsidePortraitFrame()
+        {
+            SceneManager.LoadScene("Main", LoadSceneMode.Single);
+            yield return null;
+
+            LevelFlowController flow = Object.FindFirstObjectByType<LevelFlowController>();
+            TopGridController topGrid = Object.FindFirstObjectByType<TopGridController>();
+            ReceiverQueueController receivers = Object.FindFirstObjectByType<ReceiverQueueController>();
+            Camera gameplayCamera = Camera.main;
+
+            for (int levelIndex = 0; levelIndex < 5; levelIndex++)
+            {
+                Assert.That(flow.TryLoadLevel(levelIndex), Is.True);
+                yield return null;
+
+                AssertRenderersInsidePortraitFrame(
+                    topGrid.transform,
+                    gameplayCamera,
+                    $"Level {levelIndex + 1} top grid");
+                AssertRenderersInsidePortraitFrame(
+                    receivers.transform,
+                    gameplayCamera,
+                    $"Level {levelIndex + 1} receiver queues");
+            }
         }
 
         [UnityTest]
@@ -122,6 +160,33 @@ namespace MarbleSort.Tests.PlayMode
             Assert.That(flow.Status, Is.EqualTo(LevelFlowStatus.Playing));
             Assert.That(hud.OverlayVisible, Is.False);
             Assert.That(hud.RetryVisible, Is.False);
+        }
+
+        private static void AssertRenderersInsidePortraitFrame(
+            Transform root,
+            Camera gameplayCamera,
+            string context)
+        {
+            Renderer[] renderers = root.GetComponentsInChildren<Renderer>();
+            Assert.That(renderers, Is.Not.Empty, $"{context} has no visible renderers.");
+
+            for (int index = 0; index < renderers.Length; index++)
+            {
+                Bounds bounds = renderers[index].bounds;
+                Vector3 minimum = gameplayCamera.WorldToViewportPoint(
+                    new Vector3(bounds.min.x, bounds.min.y, bounds.center.z));
+                Vector3 maximum = gameplayCamera.WorldToViewportPoint(
+                    new Vector3(bounds.max.x, bounds.max.y, bounds.center.z));
+
+                Assert.That(minimum.x, Is.GreaterThanOrEqualTo(0f),
+                    $"{context}: '{renderers[index].name}' crosses the left edge.");
+                Assert.That(maximum.x, Is.LessThanOrEqualTo(1f),
+                    $"{context}: '{renderers[index].name}' crosses the right edge.");
+                Assert.That(minimum.y, Is.GreaterThanOrEqualTo(0f),
+                    $"{context}: '{renderers[index].name}' crosses the bottom edge.");
+                Assert.That(maximum.y, Is.LessThanOrEqualTo(1f),
+                    $"{context}: '{renderers[index].name}' crosses the top edge.");
+            }
         }
     }
 }

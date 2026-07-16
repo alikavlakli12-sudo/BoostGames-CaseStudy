@@ -13,6 +13,8 @@ namespace MarbleSort.Gameplay.TopGrid
         private bool exposed;
         private bool interactionEnabled;
         private float targetScale = 1f;
+        private float currentScale = 1f;
+        private float pulsePhase;
 
         public string BoxId { get; private set; } = string.Empty;
 
@@ -23,6 +25,7 @@ namespace MarbleSort.Gameplay.TopGrid
             BoxId = boxId;
             ColorId = MarblePalette.Normalize(colorId);
             name = $"Top Box - {BoxId}";
+            pulsePhase = Mathf.Abs(Animator.StringToHash(BoxId) % 628) * 0.01f;
 
             GameObject shadow = PresentationMeshFactory.CreateRoundedBox(
                 "Soft Shadow",
@@ -133,14 +136,18 @@ namespace MarbleSort.Gameplay.TopGrid
 
         private void Update()
         {
-            float speed = targetScale > transform.localScale.x ? 12f : 8f;
-            float next = Mathf.MoveTowards(
-                transform.localScale.x,
+            float speed = targetScale > currentScale ? 12f : 8f;
+            currentScale = Mathf.MoveTowards(
+                currentScale,
                 targetScale,
                 speed * Time.deltaTime);
-            transform.localScale = Vector3.one * next;
 
-            if (!interactionEnabled && targetScale > 1.05f && next >= targetScale - 0.001f)
+            float pulse = exposed && interactionEnabled
+                ? (Mathf.Sin((Time.unscaledTime * 3.2f) + pulsePhase) + 1f) * 0.009f
+                : 0f;
+            transform.localScale = Vector3.one * (currentScale + pulse);
+
+            if (!interactionEnabled && targetScale > 1.05f && currentScale >= targetScale - 0.001f)
             {
                 targetScale = 1f;
             }

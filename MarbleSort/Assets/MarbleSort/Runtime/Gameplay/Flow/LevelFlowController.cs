@@ -29,12 +29,13 @@ namespace MarbleSort.Gameplay.Flow
         [SerializeField] private ReceiverQueueController receivers;
         [SerializeField] private MarblePool marblePool;
         [SerializeField] private GameHudView hud;
-        [SerializeField, Min(0f)] private float completionAdvanceDelay = 1.2f;
+        [SerializeField, Min(0f)] private float completionAdvanceDelay = 1.6f;
 
         private ConveyorSlotSnapshot[] conveyorSnapshots = Array.Empty<ConveyorSlotSnapshot>();
         private ReceiverSnapshot[] receiverSnapshots = Array.Empty<ReceiverSnapshot>();
         private Coroutine advanceRoutine;
         private bool suppressEvaluation;
+        private bool tutorialDismissed;
 
         public event Action<LevelFlowStatus> StatusChanged;
 
@@ -133,6 +134,7 @@ namespace MarbleSort.Gameplay.Flow
             conveyor.SlotOccupied += HandleConveyorChanged;
             conveyor.SlotCleared += HandleConveyorChanged;
             receivers.StateChanged += HandleReceiverChanged;
+            topGrid.BoxSelected += HandleBoxSelected;
             hud?.Configure(this);
             ShowPlayingHud();
             EnsureSnapshotCapacity();
@@ -154,7 +156,19 @@ namespace MarbleSort.Gameplay.Flow
 
         private void HandleReceiverChanged()
         {
+            UpdateHudProgress();
             Reevaluate();
+        }
+
+        private void HandleBoxSelected(string boxId, string colorId, Vector3 position)
+        {
+            if (tutorialDismissed)
+            {
+                return;
+            }
+
+            tutorialDismissed = true;
+            hud?.HideHint();
         }
 
         private void SetComplete()
@@ -292,7 +306,20 @@ namespace MarbleSort.Gameplay.Flow
         private void ShowPlayingHud()
         {
             LevelData level = GetCurrentLevel();
-            hud?.ShowPlaying(level?.displayName ?? "Level");
+            int completed = receivers?.State?.CompletedBoxCount ?? 0;
+            int total = receivers?.State?.TotalBoxCount ?? 0;
+            bool showHint = CurrentLevelIndex == 0 && !tutorialDismissed;
+            hud?.ShowPlaying(level?.displayName ?? "Level", completed, total, showHint);
+        }
+
+        private void UpdateHudProgress()
+        {
+            if (receivers?.State == null)
+            {
+                return;
+            }
+
+            hud?.SetProgress(receivers.State.CompletedBoxCount, receivers.State.TotalBoxCount);
         }
 
         private void OnDestroy()
@@ -306,6 +333,11 @@ namespace MarbleSort.Gameplay.Flow
             if (receivers != null)
             {
                 receivers.StateChanged -= HandleReceiverChanged;
+            }
+
+            if (topGrid != null)
+            {
+                topGrid.BoxSelected -= HandleBoxSelected;
             }
         }
 

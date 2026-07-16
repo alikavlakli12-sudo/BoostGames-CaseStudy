@@ -16,23 +16,37 @@ namespace MarbleSort.UI
         private GUIStyle subStatusStyle;
         private GUIStyle topButtonStyle;
         private GUIStyle retryButtonStyle;
+        private GUIStyle progressValueStyle;
+        private GUIStyle progressLabelStyle;
+        private GUIStyle hintStyle;
         private GUIStyle levelPanelStyle;
         private GUIStyle overlayPanelStyle;
         private GUIStyle shadowPanelStyle;
+        private GUIStyle hintPanelStyle;
         private Texture2D levelPanelTexture;
         private Texture2D overlayPanelTexture;
         private Texture2D buttonTexture;
         private Texture2D shadowTexture;
+        private Texture2D hintPanelTexture;
         private string levelName = "Level 1";
+        private string progressText = "0/0";
         private string statusTitle = string.Empty;
         private string statusSubtitle = string.Empty;
         private bool overlayVisible;
         private bool retryVisible;
+        private bool hintVisible;
         private float overlayAlpha;
+        private float hintAlpha;
 
         public bool OverlayVisible => overlayVisible;
 
         public bool RetryVisible => retryVisible;
+
+        public bool HintVisible => hintVisible;
+
+        public int CompletedTrayCount { get; private set; }
+
+        public int TotalTrayCount { get; private set; }
 
         public float LastSafeTopOffset { get; private set; }
 
@@ -41,11 +55,29 @@ namespace MarbleSort.UI
             levelFlow = flow;
         }
 
-        public void ShowPlaying(string displayName)
+        public void ShowPlaying(
+            string displayName,
+            int completedTrayCount,
+            int totalTrayCount,
+            bool showHint)
         {
             levelName = displayName;
             overlayVisible = false;
             retryVisible = false;
+            hintVisible = showHint;
+            SetProgress(completedTrayCount, totalTrayCount);
+        }
+
+        public void SetProgress(int completedTrayCount, int totalTrayCount)
+        {
+            TotalTrayCount = Mathf.Max(0, totalTrayCount);
+            CompletedTrayCount = Mathf.Clamp(completedTrayCount, 0, TotalTrayCount);
+            progressText = $"{CompletedTrayCount}/{TotalTrayCount}";
+        }
+
+        public void HideHint()
+        {
+            hintVisible = false;
         }
 
         public void ShowComplete(string displayName)
@@ -70,6 +102,9 @@ namespace MarbleSort.UI
         {
             float target = overlayVisible ? 1f : 0f;
             overlayAlpha = Mathf.MoveTowards(overlayAlpha, target, Time.unscaledDeltaTime * 5.5f);
+
+            float hintTarget = hintVisible && !overlayVisible ? 1f : 0f;
+            hintAlpha = Mathf.MoveTowards(hintAlpha, hintTarget, Time.unscaledDeltaTime * 5.5f);
         }
 
         private void OnGUI()
@@ -94,6 +129,11 @@ namespace MarbleSort.UI
                 new Vector3(scale, scale, 1f));
 
             DrawTopHud(topY);
+            if (hintAlpha > 0.001f)
+            {
+                DrawHint(topY, hintAlpha);
+            }
+
             if (overlayAlpha > 0.001f)
             {
                 DrawOverlay(overlayAlpha);
@@ -118,6 +158,25 @@ namespace MarbleSort.UI
             GUI.Box(levelShadow, GUIContent.none, shadowPanelStyle);
             GUI.Box(levelRect, GUIContent.none, levelPanelStyle);
             GUI.Label(levelRect, levelName, levelStyle);
+
+            Rect progressShadow = new Rect(576f, topY + 6f, 112f, 72f);
+            Rect progressRect = new Rect(572f, topY, 112f, 72f);
+            GUI.Box(progressShadow, GUIContent.none, shadowPanelStyle);
+            GUI.Box(progressRect, GUIContent.none, levelPanelStyle);
+            GUI.Label(new Rect(572f, topY + 5f, 112f, 40f), progressText, progressValueStyle);
+            GUI.Label(new Rect(572f, topY + 40f, 112f, 24f), "TRAYS", progressLabelStyle);
+        }
+
+        private void DrawHint(float topY, float alpha)
+        {
+            Color previous = GUI.color;
+            GUI.color = new Color(1f, 1f, 1f, alpha);
+            Rect shadow = new Rect(106f, topY + 96f, 516f, 54f);
+            Rect panel = new Rect(102f, topY + 90f, 516f, 54f);
+            GUI.Box(shadow, GUIContent.none, shadowPanelStyle);
+            GUI.Box(panel, GUIContent.none, hintPanelStyle);
+            GUI.Label(panel, "Tap a dotted box  •  Fill matching trays", hintStyle);
+            GUI.color = previous;
         }
 
         private void DrawOverlay(float alpha)
@@ -180,6 +239,12 @@ namespace MarbleSort.UI
                 new Color32(41, 54, 102, 205),
                 22f,
                 0f);
+            hintPanelTexture = CreateRoundedTexture(
+                "Hint Panel",
+                new Color32(76, 94, 149, 235),
+                new Color32(146, 169, 226, 255),
+                20f,
+                3f);
 
             RectOffset scalableBorder = new RectOffset(22, 22, 22, 22);
             levelPanelStyle = new GUIStyle(GUI.skin.box)
@@ -195,6 +260,11 @@ namespace MarbleSort.UI
             shadowPanelStyle = new GUIStyle(GUI.skin.box)
             {
                 normal = { background = shadowTexture },
+                border = scalableBorder
+            };
+            hintPanelStyle = new GUIStyle(GUI.skin.box)
+            {
+                normal = { background = hintPanelTexture },
                 border = scalableBorder
             };
             levelStyle = new GUIStyle(GUI.skin.label)
@@ -218,6 +288,27 @@ namespace MarbleSort.UI
                 fontSize = 24,
                 wordWrap = true,
                 normal = { textColor = new Color32(81, 100, 138, 255) }
+            };
+            progressValueStyle = new GUIStyle(GUI.skin.label)
+            {
+                alignment = TextAnchor.MiddleCenter,
+                fontSize = 25,
+                fontStyle = FontStyle.Bold,
+                normal = { textColor = Color.white }
+            };
+            progressLabelStyle = new GUIStyle(GUI.skin.label)
+            {
+                alignment = TextAnchor.UpperCenter,
+                fontSize = 14,
+                fontStyle = FontStyle.Bold,
+                normal = { textColor = new Color32(239, 231, 255, 255) }
+            };
+            hintStyle = new GUIStyle(GUI.skin.label)
+            {
+                alignment = TextAnchor.MiddleCenter,
+                fontSize = 22,
+                fontStyle = FontStyle.Bold,
+                normal = { textColor = Color.white }
             };
             topButtonStyle = CreateButtonStyle(buttonTexture, 42);
             retryButtonStyle = CreateButtonStyle(buttonTexture, 28);
@@ -282,6 +373,7 @@ namespace MarbleSort.UI
             DestroyTexture(overlayPanelTexture);
             DestroyTexture(buttonTexture);
             DestroyTexture(shadowTexture);
+            DestroyTexture(hintPanelTexture);
         }
 
         private static void DestroyTexture(Texture2D texture)

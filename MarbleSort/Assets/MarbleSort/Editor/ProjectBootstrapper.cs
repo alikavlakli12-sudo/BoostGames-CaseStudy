@@ -95,7 +95,7 @@ namespace MarbleSort.Editor
                 receivers,
                 marblePool,
                 hud,
-                1.2f);
+                1.6f);
 
             GameFeedbackController feedback = systems.AddComponent<GameFeedbackController>();
             feedback.Configure(topGrid, admission, receivers, levelFlow, palette, particle);

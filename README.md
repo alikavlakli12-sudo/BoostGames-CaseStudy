@@ -105,8 +105,9 @@ Unity-generated folders such as `Library`, `Temp`, `Logs`, `Obj`, `Build`, and `
 
 ## Current milestone
 
-Delivery QA is complete. The repository now includes an automated 12-check readiness gate,
-35 EditMode tests, 16 PlayMode tests, reproducible command-line verification, a successful desktop
-smoke-build workflow, clean-clone coverage, reviewer setup instructions, and explicit known
-limitations. The project is ready for final repository review and submission after the
-`delivery-qa` branch is pushed and merged according to the Git gate.
+Milestones 1–6 and Delivery QA are complete and merged. The project is in its final polish pass,
+focused on first-play guidance, interaction readability, live progress feedback, and regression
+verification. The automated 12-check readiness gate, 35 EditMode tests, 17 PlayMode tests,
+reproducible smoke build, reviewer setup, and explicit known limitations remain the submission
+baseline. Final submission/tagging is intentionally held until this polish branch passes the full
+QA gate and review.

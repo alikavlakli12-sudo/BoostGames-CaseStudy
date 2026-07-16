@@ -19,7 +19,10 @@ existing runtime events. The visual scene can still be rebuilt deterministically
 - The responsive camera preserves the full gameplay width on narrow portrait devices and scales
   the illustrated backdrop to cover the visible area.
 - The immediate-mode HUD uses generated nine-slice textures, honors `Screen.safeArea`, and exposes
-  retry, completion, and deadlock states without adding a canvas hierarchy.
+  retry, completion, deadlock, live tray progress, and one-time Level 1 guidance without adding a
+  canvas hierarchy.
+- Exposed top boxes use nine visible marble markers plus a subtle allocation-free pulse, making the
+  valid interaction state readable without adding permanent arrows or hand overlays.
 
 ## Feedback and audio
 
@@ -61,3 +64,6 @@ shared materials and do not request real-time shadows.
    receiver lanes, and the full lower receiver bay remain inside the portrait frame.
 4. Trigger a full incompatible conveyor and confirm the deadlock overlay and retry reset.
 5. Run all EditMode and PlayMode tests after any presentation or scene-bootstrapper change.
+
+The PlayMode layout guard also loads every production level and verifies that all top-box and
+receiver renderers remain inside the portrait camera, including Level 5's six-deep receiver lanes.

@@ -8,7 +8,7 @@ namespace MarbleSort.Tests.EditMode
     public sealed class PresentationTests
     {
         private const string BackgroundPath =
-            "Assets/MarbleSort/Art/Textures/PortraitBackground.png";
+            "Assets/MarbleSort/Art/Textures/PortraitEnvironmentV3.png";
 
         [Test]
         public void RoundedBoxMesh_IsCachedAndMatchesRequestedBounds()
@@ -118,14 +118,14 @@ namespace MarbleSort.Tests.EditMode
         }
 
         [Test]
-        public void PortraitBackground_IsImportedForMobilePresentation()
+        public void PremiumPortraitBackground_IsImportedForMobilePresentation()
         {
             Texture2D texture = AssetDatabase.LoadAssetAtPath<Texture2D>(BackgroundPath);
             TextureImporter importer = AssetImporter.GetAtPath(BackgroundPath) as TextureImporter;
 
             Assert.That(texture, Is.Not.Null);
-            Assert.That(texture.width, Is.EqualTo(1024));
-            Assert.That(texture.height, Is.EqualTo(1536));
+            Assert.That(texture.width, Is.EqualTo(853));
+            Assert.That(texture.height, Is.EqualTo(1844));
             Assert.That(importer, Is.Not.Null);
             Assert.That(importer.wrapMode, Is.EqualTo(TextureWrapMode.Clamp));
             Assert.That(importer.mipmapEnabled, Is.False);

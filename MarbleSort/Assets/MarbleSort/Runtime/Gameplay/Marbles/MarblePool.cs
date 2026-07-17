@@ -8,9 +8,12 @@ namespace MarbleSort.Gameplay.Marbles
     [DisallowMultipleComponent]
     public sealed class MarblePool : MonoBehaviour
     {
+        public const float ActiveMarbleDiameter = 0.365f;
+        public const float LoosePhysicsDiameter = 0.22f;
+
         [SerializeField] private MarblePalette palette;
         [SerializeField, Min(1)] private int initialCapacity = 72;
-        [SerializeField, Min(0.05f)] private float marbleDiameter = 0.22f;
+        [SerializeField, Min(0.05f)] private float marbleDiameter = ActiveMarbleDiameter;
         [SerializeField] private float returnBelowY = -8.5f;
 
         private readonly Stack<MarbleActor> available = new Stack<MarbleActor>();
@@ -22,6 +25,8 @@ namespace MarbleSort.Gameplay.Marbles
         public int AvailableCount => available.Count;
 
         public int CreatedCount { get; private set; }
+
+        public float MarbleDiameter => marbleDiameter;
 
         public void Configure(
             MarblePalette marblePalette,
@@ -124,6 +129,8 @@ namespace MarbleSort.Gameplay.Marbles
             body.solverVelocityIterations = 2;
 
             SphereCollider sphere = marbleObject.GetComponent<SphereCollider>();
+            float colliderDiameter = Mathf.Min(marbleDiameter, LoosePhysicsDiameter);
+            sphere.radius = colliderDiameter / (2f * marbleDiameter);
             sphere.contactOffset = 0.01f;
 
             Renderer marbleRenderer = marbleObject.GetComponent<Renderer>();

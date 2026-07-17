@@ -85,6 +85,13 @@ namespace MarbleSort.Tests.PlayMode
             }
 
             Assert.That(activeMarble, Is.Not.Null);
+            Assert.That(pool.MarbleDiameter, Is.EqualTo(MarblePool.ActiveMarbleDiameter).Within(0.001f));
+            Assert.That(
+                activeMarble.transform.localScale,
+                Is.EqualTo(Vector3.one * MarblePool.ActiveMarbleDiameter));
+            Assert.That(
+                activeMarble.GetComponent<SphereCollider>().bounds.size.x,
+                Is.EqualTo(MarblePool.LoosePhysicsDiameter).Within(0.001f));
             Assert.That(activeMarble.GetComponent<Renderer>().sharedMaterial.GetFloat("_Glossiness"),
                 Is.EqualTo(0.72f).Within(0.001f));
         }

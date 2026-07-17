@@ -2,6 +2,7 @@ using System;
 using MarbleSort.Core;
 using MarbleSort.Data;
 using MarbleSort.Gameplay.Marbles;
+using MarbleSort.Presentation;
 using UnityEngine;
 
 namespace MarbleSort.Gameplay.Conveyor
@@ -31,6 +32,8 @@ namespace MarbleSort.Gameplay.Conveyor
         public float Phase => phase;
 
         public ConveyorState State => state;
+
+        public int ConfiguredSlotViewCount => slotViews?.Length ?? 0;
 
         public float EntranceNormalizedDistance =>
             StadiumPath.GetTopCenterNormalizedDistance(straightLength, turnRadius);
@@ -76,6 +79,11 @@ namespace MarbleSort.Gameplay.Conveyor
         public MarbleActor GetOccupant(int index)
         {
             return index >= 0 && index < occupants.Length ? occupants[index] : null;
+        }
+
+        public Transform GetSlotView(int index)
+        {
+            return index >= 0 && index < (slotViews?.Length ?? 0) ? slotViews[index] : null;
         }
 
         public bool TryFindClosestOccupiedSlot(
@@ -204,6 +212,11 @@ namespace MarbleSort.Gameplay.Conveyor
 
         private void Awake()
         {
+            if (GetComponent<ConveyorArtworkPresenter>() == null)
+            {
+                gameObject.AddComponent<ConveyorArtworkPresenter>();
+            }
+
             InitializeRuntimeState();
         }
 

@@ -14,6 +14,9 @@ namespace MarbleSort.Gameplay.Receivers
     [DisallowMultipleComponent]
     public sealed class ReceiverQueueController : MonoBehaviour
     {
+        private const float ReceiverWidth = 1.7f;
+        private const float ReceiverMarkerY = 0.19f;
+
         [SerializeField] private GameBootstrap bootstrap;
         [SerializeField] private StadiumConveyorController conveyor;
         [SerializeField] private MarblePool marblePool;
@@ -23,6 +26,9 @@ namespace MarbleSort.Gameplay.Receivers
         [SerializeField, Min(0.01f)] private float collectionRadius = 0.18f;
         [SerializeField, Min(0f)] private float transferDuration = 0.18f;
         [SerializeField, Min(0f)] private float transferArcHeight = 0.12f;
+        [SerializeField, Min(0.01f)] private float lidOpenDuration = 0.24f;
+        [SerializeField, Min(0.01f)] private float lidCloseDuration = 0.13f;
+        [SerializeField, Min(0.01f)] private float queueAdvanceDuration = 0.16f;
 
         private readonly Dictionary<string, ReceiverBoxRuntimeView> boxViews =
             new Dictionary<string, ReceiverBoxRuntimeView>(StringComparer.OrdinalIgnoreCase);
@@ -47,6 +53,27 @@ namespace MarbleSort.Gameplay.Receivers
         public int GeneratedBoxCount => state == null ? 0 : state.RemainingBoxCount;
 
         public bool CollectionEnabled => collectionEnabled;
+
+        public int GeneratedLidCount => boxViews.Count;
+
+        public int OpenLidCount
+        {
+            get
+            {
+                int count = 0;
+                foreach (ReceiverBoxRuntimeView view in boxViews.Values)
+                {
+                    if (view.IsLidOpen)
+                    {
+                        count++;
+                    }
+                }
+
+                return count;
+            }
+        }
+
+        public int ClosedLidCount => Mathf.Max(0, GeneratedLidCount - OpenLidCount);
 
         public void Configure(
             GameBootstrap gameBootstrap,
@@ -84,13 +111,33 @@ namespace MarbleSort.Gameplay.Receivers
             currentLevel = level;
             state = new ReceiverQueueState(level.receiverLanes);
             laneTransfers = new bool[state.Lanes.Count];
+            ReceiverBoxRuntimeView[] activeViews = new ReceiverBoxRuntimeView[state.Lanes.Count];
             for (int laneIndex = 0; laneIndex < state.Lanes.Count; laneIndex++)
             {
                 CreateLaneRoot(laneIndex);
-                RebuildLaneView(laneIndex);
+                activeViews[laneIndex] = RebuildLaneView(laneIndex);
             }
 
             collectionEnabled = true;
+            for (int laneIndex = 0; laneIndex < activeViews.Length; laneIndex++)
+            {
+                ReceiverBoxRuntimeView activeView = activeViews[laneIndex];
+                if (activeView == null)
+                {
+                    continue;
+                }
+
+                if (Application.isPlaying)
+                {
+                    laneTransfers[laneIndex] = true;
+                    StartCoroutine(AnimateInitialLidOpen(laneIndex, activeView));
+                }
+                else
+                {
+                    activeView.SetLidOpenAmount(1f);
+                }
+            }
+
             StateChanged?.Invoke();
             return true;
         }
@@ -98,6 +145,20 @@ namespace MarbleSort.Gameplay.Receivers
         public void SetCollectionEnabled(bool value)
         {
             collectionEnabled = value;
+        }
+
+        public bool IsLaneReadyForCollection(int laneIndex)
+        {
+            if (state == null || laneIndex < 0 || laneIndex >= state.Lanes.Count ||
+                laneIndex >= laneTransfers.Length || laneTransfers[laneIndex])
+            {
+                return false;
+            }
+
+            ReceiverBoxState activeBox = state.Lanes[laneIndex].ActiveBox;
+            return activeBox != null &&
+                   boxViews.TryGetValue(activeBox.Id, out ReceiverBoxRuntimeView view) &&
+                   view.IsLidOpen;
         }
 
         public Vector3 GetCollectionWorldPosition(int laneIndex)
@@ -127,7 +188,8 @@ namespace MarbleSort.Gameplay.Receivers
             }
 
             ReceiverBoxState activeBox = state.Lanes[laneIndex].ActiveBox;
-            if (activeBox == null || !boxViews.TryGetValue(activeBox.Id, out ReceiverBoxRuntimeView boxView))
+            if (activeBox == null || !boxViews.TryGetValue(activeBox.Id, out ReceiverBoxRuntimeView boxView) ||
+                !boxView.IsLidOpen)
             {
                 return false;
             }
@@ -204,6 +266,26 @@ namespace MarbleSort.Gameplay.Receivers
             }
         }
 
+        private IEnumerator AnimateInitialLidOpen(int laneIndex, ReceiverBoxRuntimeView activeView)
+        {
+            float stagger = laneIndex * 0.035f;
+            if (stagger > 0f)
+            {
+                yield return new WaitForSeconds(stagger);
+            }
+
+            if (!IsCurrentActiveView(laneIndex, activeView))
+            {
+                yield break;
+            }
+
+            yield return AnimateLid(activeView, true, lidOpenDuration);
+            if (IsCurrentActiveView(laneIndex, activeView))
+            {
+                laneTransfers[laneIndex] = false;
+            }
+        }
+
         private IEnumerator AnimateTransfer(
             MarbleActor marble,
             Vector3 target,
@@ -229,20 +311,55 @@ namespace MarbleSort.Gameplay.Receivers
 
             if (result.BoxCompleted)
             {
-                yield return AnimateBoxPulse(boxView.Root.transform, true);
-                RebuildLaneView(result.LaneIndex);
+                boxView.SetFilledCount(result.FillCount);
+                yield return AnimateLid(boxView, false, lidCloseDuration);
+                yield return AnimateBoxExit(boxView.Root.transform);
+
+                List<ReceiverBoxRuntimeView> promotedViews = new List<ReceiverBoxRuntimeView>();
+                float spacing = currentLevel.receiverLanes[result.LaneIndex].verticalSpacing;
+                ReceiverBoxRuntimeView nextActive = RebuildLaneView(
+                    result.LaneIndex,
+                    -spacing,
+                    promotedViews);
                 ReceiverCompleted?.Invoke(result.LaneIndex, result.BoxId, result.ColorId);
+
+                if (promotedViews.Count > 0)
+                {
+                    yield return AnimateLaneAdvance(promotedViews, spacing, queueAdvanceDuration);
+                }
+
+                if (nextActive != null)
+                {
+                    yield return AnimateLid(nextActive, true, lidOpenDuration);
+                }
+
+                laneTransfers[result.LaneIndex] = false;
             }
             else
             {
                 boxView.SetFilledCount(result.FillCount);
-                yield return AnimateBoxPulse(boxView.Root.transform, false);
+                // The receiver can accept its next marble as soon as this marble reaches
+                // its capacity spot; the decorative pulse must never force a full loop.
+                laneTransfers[result.LaneIndex] = false;
+                yield return AnimateBoxPulse(boxView.Root.transform);
             }
 
             PendingTransferCount--;
-            laneTransfers[result.LaneIndex] = false;
             MarbleCollected?.Invoke(result);
             StateChanged?.Invoke();
+        }
+
+        private bool IsCurrentActiveView(int laneIndex, ReceiverBoxRuntimeView view)
+        {
+            if (view == null || state == null || laneIndex < 0 || laneIndex >= state.Lanes.Count)
+            {
+                return false;
+            }
+
+            ReceiverBoxState activeBox = state.Lanes[laneIndex].ActiveBox;
+            return activeBox != null &&
+                   boxViews.TryGetValue(activeBox.Id, out ReceiverBoxRuntimeView currentView) &&
+                   ReferenceEquals(currentView, view);
         }
 
         private void CreateLaneRoot(int laneIndex)
@@ -254,13 +371,17 @@ namespace MarbleSort.Gameplay.Receivers
             laneRoots.Add(laneRoot);
         }
 
-        private void RebuildLaneView(int laneIndex)
+        private ReceiverBoxRuntimeView RebuildLaneView(
+            int laneIndex,
+            float spawnOffsetY = 0f,
+            List<ReceiverBoxRuntimeView> rebuiltViews = null)
         {
             GameObject laneRoot = laneRoots[laneIndex];
             ClearLaneChildren(laneRoot.transform);
 
             ReceiverLaneData laneData = currentLevel.receiverLanes[laneIndex];
             ReceiverLaneState laneState = state.Lanes[laneIndex];
+            ReceiverBoxRuntimeView activeView = null;
             int visibleIndex = 0;
             for (int boxIndex = laneState.ActiveBoxIndex; boxIndex < laneState.Boxes.Count; boxIndex++)
             {
@@ -269,23 +390,33 @@ namespace MarbleSort.Gameplay.Receivers
                 ReceiverBoxRuntimeView view = CreateBoxView(
                     laneRoot.transform,
                     box,
-                    new Vector3(0f, -(visibleIndex * laneData.verticalSpacing), 0f),
-                    isActive);
+                    new Vector3(0f, -(visibleIndex * laneData.verticalSpacing) + spawnOffsetY, 0f),
+                    isActive,
+                    visibleIndex);
                 boxViews[box.Id] = view;
+                rebuiltViews?.Add(view);
+                if (isActive)
+                {
+                    activeView = view;
+                }
+
                 visibleIndex++;
             }
+
+            return activeView;
         }
 
         private ReceiverBoxRuntimeView CreateBoxView(
             Transform parent,
             ReceiverBoxState box,
             Vector3 localPosition,
-            bool active)
+            bool active,
+            int queueIndex)
         {
             GameObject root = new GameObject($"Receiver - {box.Id}");
             root.transform.SetParent(parent, false);
             root.transform.localPosition = localPosition;
-            root.transform.localScale = Vector3.one * (active ? 1f : 0.94f);
+            root.transform.localScale = Vector3.one;
 
             if (!ReceiverArtworkLibrary.TryGet(box.ColorId, out ReceiverArtwork artwork))
             {
@@ -293,13 +424,30 @@ namespace MarbleSort.Gameplay.Receivers
                 throw new InvalidOperationException($"Receiver artwork is unavailable for color '{box.ColorId}'.");
             }
 
+            // Each waiting box sits slightly in front of the box above it, matching the
+            // physical stack shown in the reference game instead of disappearing beneath it.
+            int sortingBase = 20 + (Mathf.Clamp(queueIndex, 0, 6) * 3);
             GameObject body = CreateSpriteVisual(
-                "Hyper Realistic Receiver",
+                "Hyper Realistic Receiver Body",
                 root.transform,
-                artwork.Tray,
+                artwork.Box,
                 new Vector3(0f, 0f, -0.2f),
-                1.56f,
-                20);
+                ReceiverWidth,
+                sortingBase);
+            SpriteRenderer bodyRenderer = body.GetComponent<SpriteRenderer>();
+
+            GameObject lidLiftObject = new GameObject("Receiver Lid Lift");
+            lidLiftObject.transform.SetParent(root.transform, false);
+            lidLiftObject.transform.localPosition = new Vector3(0f, 0.13f, -0.27f);
+
+            GameObject lid = CreateSpriteVisual(
+                "Hyper Realistic Receiver Lid",
+                lidLiftObject.transform,
+                artwork.Cap,
+                Vector3.zero,
+                ReceiverWidth,
+                sortingBase + 2);
+            SpriteRenderer lidRenderer = lid.GetComponent<SpriteRenderer>();
 
             GameObject[] markers = Array.Empty<GameObject>();
             Transform[] markerTransforms = Array.Empty<Transform>();
@@ -313,16 +461,24 @@ namespace MarbleSort.Gameplay.Receivers
                         $"Glossy Receiver Ball {index + 1}",
                         root.transform,
                         artwork.Ball,
-                        new Vector3(-0.46f + (index * 0.46f), 0.005f, -0.24f),
-                        0.365f,
-                        21,
+                        new Vector3(-0.46f + (index * 0.46f), ReceiverMarkerY, -0.24f),
+                        MarblePool.ActiveMarbleDiameter,
+                        sortingBase + 1,
                         fitByHeight: true);
                     markers[index] = marker;
                     markerTransforms[index] = marker.transform;
                 }
             }
 
-            ReceiverBoxRuntimeView view = new ReceiverBoxRuntimeView(root, body, markers, markerTransforms);
+            ReceiverBoxRuntimeView view = new ReceiverBoxRuntimeView(
+                root,
+                body,
+                bodyRenderer,
+                lidLiftObject.transform,
+                lidRenderer,
+                markers,
+                markerTransforms);
+            view.SetLidOpenAmount(0f);
             view.SetFilledCount(box.FillCount);
             return view;
         }
@@ -352,7 +508,72 @@ namespace MarbleSort.Gameplay.Receivers
             return visual;
         }
 
-        private static IEnumerator AnimateBoxPulse(Transform target, bool completing)
+        private static IEnumerator AnimateLid(
+            ReceiverBoxRuntimeView view,
+            bool opening,
+            float duration)
+        {
+            if (view == null)
+            {
+                yield break;
+            }
+
+            float start = opening ? 0f : 1f;
+            float end = opening ? 1f : 0f;
+            view.SetLidOpenAmount(start);
+
+            float elapsed = 0f;
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                float normalized = duration <= 0f ? 1f : Mathf.Clamp01(elapsed / duration);
+                float eased = normalized * normalized * (3f - (2f * normalized));
+                view.SetLidOpenAmount(Mathf.LerpUnclamped(start, end, eased));
+                yield return null;
+            }
+
+            view.SetLidOpenAmount(end);
+        }
+
+        private static IEnumerator AnimateLaneAdvance(
+            IReadOnlyList<ReceiverBoxRuntimeView> views,
+            float distance,
+            float duration)
+        {
+            if (views == null || views.Count == 0)
+            {
+                yield break;
+            }
+
+            Vector3[] starts = new Vector3[views.Count];
+            for (int index = 0; index < views.Count; index++)
+            {
+                starts[index] = views[index].Root.transform.localPosition;
+            }
+
+            float elapsed = 0f;
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                float normalized = duration <= 0f ? 1f : Mathf.Clamp01(elapsed / duration);
+                float eased = 1f - Mathf.Pow(1f - normalized, 3f);
+                for (int index = 0; index < views.Count; index++)
+                {
+                    Vector3 target = starts[index] + (Vector3.up * distance);
+                    views[index].Root.transform.localPosition =
+                        Vector3.LerpUnclamped(starts[index], target, eased);
+                }
+
+                yield return null;
+            }
+
+            for (int index = 0; index < views.Count; index++)
+            {
+                views[index].Root.transform.localPosition = starts[index] + (Vector3.up * distance);
+            }
+        }
+
+        private static IEnumerator AnimateBoxPulse(Transform target)
         {
             if (target == null)
             {
@@ -371,7 +592,7 @@ namespace MarbleSort.Gameplay.Receivers
                 yield return null;
             }
 
-            Vector3 endScale = completing ? originalScale * 0.15f : originalScale;
+            Vector3 endScale = originalScale;
             const float settleDuration = 0.1f;
             elapsed = 0f;
             while (elapsed < settleDuration)
@@ -384,6 +605,44 @@ namespace MarbleSort.Gameplay.Receivers
             }
 
             target.localScale = endScale;
+        }
+
+        private static IEnumerator AnimateBoxExit(Transform target)
+        {
+            if (target == null)
+            {
+                yield break;
+            }
+
+            Vector3 originalScale = target.localScale;
+            Vector3 originalPosition = target.localPosition;
+            Vector3 peakScale = originalScale * 1.06f;
+            const float anticipationDuration = 0.045f;
+            float elapsed = 0f;
+            while (elapsed < anticipationDuration)
+            {
+                elapsed += Time.deltaTime;
+                float normalized = Mathf.Clamp01(elapsed / anticipationDuration);
+                target.localScale = Vector3.LerpUnclamped(originalScale, peakScale, normalized);
+                yield return null;
+            }
+
+            const float exitDuration = 0.14f;
+            Vector3 endScale = originalScale * 0.06f;
+            Vector3 endPosition = originalPosition + new Vector3(0f, 0.12f, 0f);
+            elapsed = 0f;
+            while (elapsed < exitDuration)
+            {
+                elapsed += Time.deltaTime;
+                float normalized = Mathf.Clamp01(elapsed / exitDuration);
+                float eased = normalized * normalized * normalized;
+                target.localScale = Vector3.LerpUnclamped(peakScale, endScale, eased);
+                target.localPosition = Vector3.LerpUnclamped(originalPosition, endPosition, eased);
+                yield return null;
+            }
+
+            target.localScale = endScale;
+            target.localPosition = endPosition;
         }
 
         private void CancelPendingTransfers()
@@ -459,21 +718,39 @@ namespace MarbleSort.Gameplay.Receivers
             collectionRadius = Mathf.Max(0.01f, collectionRadius);
             transferDuration = Mathf.Max(0f, transferDuration);
             transferArcHeight = Mathf.Max(0f, transferArcHeight);
+            lidOpenDuration = Mathf.Max(0.01f, lidOpenDuration);
+            lidCloseDuration = Mathf.Max(0.01f, lidCloseDuration);
+            queueAdvanceDuration = Mathf.Max(0.01f, queueAdvanceDuration);
         }
 
         private sealed class ReceiverBoxRuntimeView
         {
+            private const float OpenLiftDistance = 0.38f;
+
+            private readonly SpriteRenderer bodyRenderer;
+            private readonly Transform lidLift;
+            private readonly Vector3 lidClosedLocalPosition;
+            private readonly SpriteRenderer lidRenderer;
             private readonly GameObject[] capacityMarkers;
             private readonly Transform[] capacityTransforms;
 
             public ReceiverBoxRuntimeView(
                 GameObject root,
                 GameObject body,
+                SpriteRenderer receiverBodyRenderer,
+                Transform receiverLidLift,
+                SpriteRenderer receiverLidRenderer,
                 GameObject[] markers,
                 Transform[] markerTransforms)
             {
                 Root = root;
                 Body = body;
+                bodyRenderer = receiverBodyRenderer;
+                lidLift = receiverLidLift;
+                lidClosedLocalPosition = receiverLidLift == null
+                    ? Vector3.zero
+                    : receiverLidLift.localPosition;
+                lidRenderer = receiverLidRenderer;
                 capacityMarkers = markers;
                 capacityTransforms = markerTransforms;
             }
@@ -481,6 +758,8 @@ namespace MarbleSort.Gameplay.Receivers
             public GameObject Root { get; }
 
             public GameObject Body { get; }
+
+            public bool IsLidOpen { get; private set; }
 
             public Vector3 GetCapacityWorldPosition(int index)
             {
@@ -490,6 +769,32 @@ namespace MarbleSort.Gameplay.Receivers
                 }
 
                 return capacityTransforms[index].position;
+            }
+
+            public void SetLidOpenAmount(float value)
+            {
+                float openAmount = Mathf.Clamp01(value);
+                IsLidOpen = openAmount >= 0.999f;
+                if (lidLift == null || lidRenderer == null)
+                {
+                    return;
+                }
+
+                float liftAmount = 1f - Mathf.Pow(1f - openAmount, 3f);
+                lidLift.localPosition = lidClosedLocalPosition + (Vector3.up * (OpenLiftDistance * liftAmount));
+                lidLift.localRotation = Quaternion.identity;
+
+                Color lidColor = lidRenderer.color;
+                lidColor.a = 1f - Mathf.InverseLerp(0.62f, 0.98f, openAmount);
+                lidRenderer.color = lidColor;
+                lidRenderer.enabled = openAmount < 0.995f;
+
+                if (bodyRenderer != null)
+                {
+                    Color bodyColor = bodyRenderer.color;
+                    bodyColor.a = 1f;
+                    bodyRenderer.color = bodyColor;
+                }
             }
 
             public void SetFilledCount(int fillCount)

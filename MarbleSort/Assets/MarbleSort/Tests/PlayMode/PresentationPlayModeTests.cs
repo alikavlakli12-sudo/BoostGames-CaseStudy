@@ -44,10 +44,56 @@ namespace MarbleSort.Tests.PlayMode
             Assert.That(hud.HintVisible, Is.True);
             Assert.That(hud.CompletedTrayCount, Is.Zero);
             Assert.That(hud.TotalTrayCount, Is.EqualTo(6));
+            Assert.That(hud.SettingsButtonVisible, Is.True);
+            Assert.That(hud.TrayCounterVisible, Is.False);
+            Assert.That(hud.CoinBalance, Is.EqualTo(575));
+            Assert.That(hud.UnlockCardCount, Is.EqualTo(3));
+            Assert.That(hud.PremiumHudArtworkLoaded, Is.True);
             Assert.That(listener, Is.Not.Null);
             Assert.That(performance, Is.Not.Null);
             Assert.That(Application.targetFrameRate, Is.EqualTo(60));
             Assert.That(performance.FrameSampleCount, Is.GreaterThan(0));
+        }
+
+        [UnityTest]
+        public IEnumerator PremiumHudAndBoardComposition_MatchApprovedPortraitLayout()
+        {
+            SceneManager.LoadScene("Main", LoadSceneMode.Single);
+            yield return null;
+
+            GameHudView hud = Object.FindFirstObjectByType<GameHudView>();
+            GameObject topGrid = GameObject.Find("Runtime Top Grid");
+            GameObject basinRim = GameObject.Find("Basin Rim");
+            GameObject conveyor = GameObject.Find("Stadium Conveyor");
+            GameObject leftEntranceGuide = GameObject.Find("Left Entrance Guide");
+            GameObject rightEntranceGuide = GameObject.Find("Right Entrance Guide");
+
+            Assert.That(hud, Is.Not.Null);
+            Assert.That(topGrid, Is.Not.Null);
+            Assert.That(basinRim, Is.Not.Null);
+            Assert.That(conveyor, Is.Not.Null);
+            Assert.That(leftEntranceGuide, Is.Not.Null);
+            Assert.That(rightEntranceGuide, Is.Not.Null);
+            Assert.That(topGrid.transform.localPosition.y, Is.EqualTo(0.15f).Within(0.001f));
+            Assert.That(topGrid.transform.localScale.x, Is.EqualTo(1.18f).Within(0.001f));
+            Assert.That(topGrid.transform.localScale.z, Is.EqualTo(1f).Within(0.001f));
+            Assert.That(basinRim.transform.localPosition.y, Is.EqualTo(1.76f).Within(0.001f));
+            Assert.That(conveyor.transform.localPosition.y, Is.EqualTo(-3.25f).Within(0.001f));
+            Assert.That(leftEntranceGuide.GetComponent<Renderer>().enabled, Is.False);
+            Assert.That(rightEntranceGuide.GetComponent<Renderer>().enabled, Is.False);
+            Assert.That(leftEntranceGuide.GetComponent<Collider>().enabled, Is.True);
+            Assert.That(rightEntranceGuide.GetComponent<Collider>().enabled, Is.True);
+
+            float originalTimeScale = Time.timeScale;
+            hud.SetSettingsVisible(true);
+            yield return null;
+
+            Assert.That(hud.SettingsVisible, Is.True);
+            Assert.That(Time.timeScale, Is.Zero);
+
+            hud.SetSettingsVisible(false);
+            Assert.That(hud.SettingsVisible, Is.False);
+            Assert.That(Time.timeScale, Is.EqualTo(originalTimeScale).Within(0.001f));
         }
 
         [UnityTest]

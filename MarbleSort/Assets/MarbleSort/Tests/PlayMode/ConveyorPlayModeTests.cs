@@ -1,6 +1,7 @@
 using System.Collections;
 using MarbleSort.Gameplay.Conveyor;
 using MarbleSort.Gameplay.Marbles;
+using MarbleSort.Presentation;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -25,10 +26,46 @@ namespace MarbleSort.Tests.PlayMode
             Assert.That(conveyor.State.SlotCount, Is.EqualTo(24));
             Assert.That(conveyor.State.EmptyCount, Is.EqualTo(24));
 
+            ConveyorArtworkPresenter artwork = conveyor.GetComponent<ConveyorArtworkPresenter>();
+            Assert.That(artwork, Is.Not.Null);
+            Assert.That(artwork.IsUsingArtwork, Is.True);
+            Assert.That(artwork.ArtworkRenderer.sprite, Is.Not.Null);
+            Assert.That(artwork.LegacyRendererCount, Is.EqualTo(28));
+            Assert.That(artwork.MovingSocketCount, Is.EqualTo(24));
+            Assert.That(artwork.BeltSurfaceRenderer, Is.Not.Null);
+            Assert.That(artwork.BeltSurfaceRenderer.enabled, Is.True);
+            Assert.That(artwork.CenterRailRenderer, Is.Not.Null);
+            Assert.That(artwork.CenterRailRenderer.sprite, Is.Not.Null);
+            Assert.That(
+                artwork.CenterRailRenderer.sortingOrder,
+                Is.GreaterThan(artwork.ArtworkRenderer.sortingOrder),
+                "The single approved rail must be the final visible center layer.");
+            Assert.That(conveyor.transform.localScale.x, Is.EqualTo(0.9f).Within(0.001f));
+            Assert.That(conveyor.transform.localScale.y, Is.EqualTo(0.9f).Within(0.001f));
+            Assert.That(artwork.ArtworkRenderer.bounds.size.x, Is.InRange(8.9f, 9.1f));
+
+            MeshRenderer[] legacyRenderers = conveyor.GetComponentsInChildren<MeshRenderer>(true);
+            Assert.That(legacyRenderers.Length, Is.EqualTo(28));
+            int enabledLegacyRenderers = 0;
+            foreach (MeshRenderer legacyRenderer in legacyRenderers)
+            {
+                if (legacyRenderer.enabled)
+                {
+                    enabledLegacyRenderers++;
+                    Assert.That(legacyRenderer, Is.SameAs(artwork.BeltSurfaceRenderer));
+                }
+            }
+
+            Assert.That(enabledLegacyRenderers, Is.EqualTo(1));
+
             float startingPhase = conveyor.Phase;
+            Vector3 startingSocketPosition = artwork.GetMovingSocketWorldPosition(0);
             yield return new WaitForSeconds(0.1f);
 
             Assert.That(conveyor.Phase, Is.GreaterThan(startingPhase));
+            Assert.That(
+                Vector3.Distance(startingSocketPosition, artwork.GetMovingSocketWorldPosition(0)),
+                Is.GreaterThan(0.01f));
         }
 
         [UnityTest]
@@ -44,6 +81,9 @@ namespace MarbleSort.Tests.PlayMode
             Assert.That(conveyor, Is.Not.Null);
             Assert.That(admission, Is.Not.Null);
             Assert.That(pool, Is.Not.Null);
+
+            ConveyorArtworkPresenter artwork = conveyor.GetComponent<ConveyorArtworkPresenter>();
+            Assert.That(artwork, Is.Not.Null);
 
             int prewarmedCount = pool.CreatedCount;
             MarbleActor first = pool.Rent("green", new Vector3(0f, -2.18f, -0.24f), Vector3.zero);
@@ -93,12 +133,25 @@ namespace MarbleSort.Tests.PlayMode
 
             Assert.That(conveyor.GetOccupant(firstSlot), Is.SameAs(first));
             Assert.That(conveyor.GetOccupant(secondSlot), Is.SameAs(second));
+            Assert.That(first.transform.localScale, Is.EqualTo(Vector3.one * MarblePool.ActiveMarbleDiameter));
+            Assert.That(second.transform.localScale, Is.EqualTo(Vector3.one * MarblePool.ActiveMarbleDiameter));
             Assert.That(
                 Vector3.Distance(first.transform.position, conveyor.GetSlotWorldPosition(firstSlot)),
                 Is.LessThan(0.001f));
             Assert.That(
                 Vector3.Distance(second.transform.position, conveyor.GetSlotWorldPosition(secondSlot)),
                 Is.LessThan(0.001f));
+
+            Vector3 firstSocketPosition = artwork.GetMovingSocketWorldPosition(firstSlot);
+            Vector3 secondSocketPosition = artwork.GetMovingSocketWorldPosition(secondSlot);
+            Assert.That(
+                Vector2.Distance(first.transform.position, firstSocketPosition),
+                Is.LessThan(0.001f),
+                "The first marble must remain centered inside its moving socket.");
+            Assert.That(
+                Vector2.Distance(second.transform.position, secondSocketPosition),
+                Is.LessThan(0.001f),
+                "The second marble must remain centered inside its moving socket.");
         }
     }
 }

@@ -67,6 +67,7 @@ namespace MarbleSort.Tests.PlayMode
             GameObject conveyor = GameObject.Find("Stadium Conveyor");
             GameObject leftEntranceGuide = GameObject.Find("Left Entrance Guide");
             GameObject rightEntranceGuide = GameObject.Find("Right Entrance Guide");
+            ChuteBoundaryRig chuteBoundary = Object.FindFirstObjectByType<ChuteBoundaryRig>();
 
             Assert.That(hud, Is.Not.Null);
             Assert.That(topGrid, Is.Not.Null);
@@ -74,7 +75,8 @@ namespace MarbleSort.Tests.PlayMode
             Assert.That(conveyor, Is.Not.Null);
             Assert.That(leftEntranceGuide, Is.Not.Null);
             Assert.That(rightEntranceGuide, Is.Not.Null);
-            Assert.That(topGrid.transform.localPosition.y, Is.EqualTo(0.15f).Within(0.001f));
+            Assert.That(chuteBoundary, Is.Not.Null);
+            Assert.That(topGrid.transform.localPosition.y, Is.EqualTo(0.55f).Within(0.001f));
             Assert.That(topGrid.transform.localScale.x, Is.EqualTo(1.18f).Within(0.001f));
             Assert.That(topGrid.transform.localScale.z, Is.EqualTo(1f).Within(0.001f));
             Assert.That(basinRim.transform.localPosition.y, Is.EqualTo(1.76f).Within(0.001f));
@@ -83,6 +85,39 @@ namespace MarbleSort.Tests.PlayMode
             Assert.That(rightEntranceGuide.GetComponent<Renderer>().enabled, Is.False);
             Assert.That(leftEntranceGuide.GetComponent<Collider>().enabled, Is.True);
             Assert.That(rightEntranceGuide.GetComponent<Collider>().enabled, Is.True);
+            Assert.That(
+                chuteBoundary.SolidBoundaryColliderCount,
+                Is.EqualTo(ChuteBoundaryRig.ExpectedSolidColliderCount));
+            Assert.That(
+                chuteBoundary.ArtMatchedBoundarySegmentCount,
+                Is.EqualTo(ChuteBoundaryRig.ExpectedArtMatchedBoundarySegmentCount));
+            Assert.That(
+                chuteBoundary.BoundaryContourMatchesArtwork,
+                Is.True,
+                "The invisible collision surface must use the measured contact line of the illustrated backboard.");
+            Assert.That(
+                chuteBoundary.RenderedBoundaryCount,
+                Is.Zero,
+                "The illustrated backboard must remain the only visible pinball border.");
+            Assert.That(GameObject.Find("Visible 3D Pinball Basin Border"), Is.Null);
+            Assert.That(
+                GameObject.Find("Solid 3D Chute Foreground Lip"),
+                Is.Null,
+                "No extracted chute texture may render over the conveyor artwork.");
+
+            AssertSolidBoundary("Left Wall");
+            AssertSolidBoundary("Right Wall");
+            AssertSolidBoundary("Left Funnel");
+            AssertSolidBoundary("Right Funnel");
+            AssertSolidBoundary("Left Entrance Guide");
+            AssertSolidBoundary("Right Entrance Guide");
+            AssertSolidBoundary("Admission Gate");
+            BoxCollider admissionGate = GameObject.Find("Admission Gate")
+                .GetComponent<BoxCollider>();
+            Assert.That(
+                admissionGate.bounds.size.y,
+                Is.GreaterThanOrEqualTo(ChuteBoundaryRig.AdmissionGateThickness - 0.001f),
+                "The hidden admission catch must be deep enough to stop fast balls escaping below the belt.");
 
             float originalTimeScale = Time.timeScale;
             hud.SetSettingsVisible(true);
@@ -94,6 +129,19 @@ namespace MarbleSort.Tests.PlayMode
             hud.SetSettingsVisible(false);
             Assert.That(hud.SettingsVisible, Is.False);
             Assert.That(Time.timeScale, Is.EqualTo(originalTimeScale).Within(0.001f));
+        }
+
+        private static void AssertSolidBoundary(string objectName)
+        {
+            GameObject boundary = GameObject.Find(objectName);
+            Assert.That(boundary, Is.Not.Null, $"Missing solid boundary '{objectName}'.");
+            BoxCollider collider = boundary.GetComponent<BoxCollider>();
+            Assert.That(collider, Is.Not.Null);
+            Assert.That(collider.enabled, Is.True);
+            Assert.That(collider.isTrigger, Is.False);
+            Assert.That(
+                collider.bounds.size.z,
+                Is.GreaterThanOrEqualTo(ChuteBoundaryRig.SolidDepth - 0.001f));
         }
 
         [UnityTest]

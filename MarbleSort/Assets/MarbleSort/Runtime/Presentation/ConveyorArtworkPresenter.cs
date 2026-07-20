@@ -4,51 +4,75 @@ using UnityEngine;
 namespace MarbleSort.Presentation
 {
     /// <summary>
-    /// Replaces only the legacy procedural conveyor meshes with the approved baked artwork.
-    /// Slot transforms and marble actors remain live so gameplay movement is unchanged.
+    /// Displays the exact approved conveyor through one pre-rendered sprite sequence.
+    /// The existing StadiumConveyorController remains the sole owner of movement,
+    /// slot occupancy, marble anchors, and gameplay timing.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class ConveyorArtworkPresenter : MonoBehaviour
     {
-        // Includes the sprite's transparent safety padding. The visible chassis remains
-        // 8.5 world units wide after the conveyor root's 0.9 presentation scale.
-        [SerializeField, Min(0.01f)] private float targetWidth = 10.03f;
-        [SerializeField, Min(0.01f)] private float movingSocketHeight = 0.64f;
-        [SerializeField, Min(0.01f)] private float centerRailWidth = 7.3f;
+        [SerializeField, Min(0.01f)] private float targetWidth = 7.09f;
+        [SerializeField, Min(0.01f)] private float targetHeight = 1.84f;
+        [SerializeField, Min(0.01f)] private float movingSocketWidth = 0.41f;
+        [SerializeField, Min(0.01f)] private float movingSocketHeight = 0.49f;
         [SerializeField] private Vector3 localPosition = new Vector3(0f, -0.02f, 0.24f);
-        [SerializeField] private int baseSortingOrder = 10;
-        [SerializeField] private int socketSortingOrder = 11;
+        [SerializeField] private int sortingOrder = 13;
 
-        private static Material liveBeltMaterial;
-        private static Texture2D liveBeltTexture;
-        private MeshRenderer[] legacyRenderers;
-        private Transform[] movingSocketVisuals;
+        private StadiumConveyorController conveyor;
+        private Transform[] slotRoots;
+        private Sprite[] animationFrames;
         private SpriteRenderer artworkRenderer;
-        private SpriteRenderer centerRailRenderer;
-        private MeshRenderer beltSurfaceRenderer;
+        private int currentAnimationFrameIndex = -1;
+        private int darkSocketCount;
+        private int lightSocketCount;
 
         public bool IsUsingArtwork =>
             artworkRenderer != null && artworkRenderer.enabled && artworkRenderer.sprite != null;
 
         public SpriteRenderer ArtworkRenderer => artworkRenderer;
 
-        public MeshRenderer BeltSurfaceRenderer => beltSurfaceRenderer;
+        public Vector2 BeltTextureOffset => conveyor != null
+            ? new Vector2(
+                -conveyor.Phase + (0.5f / Mathf.Max(1, conveyor.ConfiguredSlotViewCount)),
+                0f)
+            : Vector2.zero;
 
-        public SpriteRenderer CenterRailRenderer => centerRailRenderer;
+        public int AnimationFrameCount => animationFrames?.Length ?? 0;
 
-        public int LegacyRendererCount => legacyRenderers?.Length ?? 0;
+        public int CurrentAnimationFrameIndex => currentAnimationFrameIndex;
 
-        public int MovingSocketCount => movingSocketVisuals?.Length ?? 0;
+        public int MovingSocketCount => slotRoots?.Length ?? 0;
+
+        public int DarkSocketCount => darkSocketCount;
+
+        public int LightSocketCount => lightSocketCount;
 
         public Vector3 GetMovingSocketWorldPosition(int index)
         {
-            if (movingSocketVisuals == null || index < 0 || index >= movingSocketVisuals.Length ||
-                movingSocketVisuals[index] == null)
-            {
-                throw new System.ArgumentOutOfRangeException(nameof(index));
-            }
+            ValidateSocketIndex(index);
+            return slotRoots[index].position;
+        }
 
-            return movingSocketVisuals[index].position;
+        public Bounds GetMovingSocketWorldBounds(int index)
+        {
+            ValidateSocketIndex(index);
+
+            Vector3 tangent = slotRoots[index].right.normalized;
+            Vector3 normal = new Vector3(-tangent.y, tangent.x, 0f);
+            float extentX = (Mathf.Abs(tangent.x) * movingSocketWidth * 0.5f) +
+                            (Mathf.Abs(normal.x) * movingSocketHeight * 0.5f);
+            float extentY = (Mathf.Abs(tangent.y) * movingSocketWidth * 0.5f) +
+                            (Mathf.Abs(normal.y) * movingSocketHeight * 0.5f);
+            return new Bounds(
+                slotRoots[index].position,
+                new Vector3(extentX * 2f, extentY * 2f, 0.01f));
+        }
+
+        public float GetMovingSocketTurnAmount(int index)
+        {
+            ValidateSocketIndex(index);
+            Vector3 tangent = slotRoots[index].localRotation * Vector3.right;
+            return Mathf.Abs(tangent.y);
         }
 
         private void Awake()
@@ -58,175 +82,134 @@ namespace MarbleSort.Presentation
 
         private void ApplyArtwork()
         {
-            legacyRenderers = GetComponentsInChildren<MeshRenderer>(true);
-            StadiumConveyorController conveyor = GetComponent<StadiumConveyorController>();
+            RemoveObsoleteVisualComponents();
+            conveyor = GetComponent<StadiumConveyorController>();
             if (conveyor == null ||
-                !ConveyorArtworkLibrary.TryGet(out Sprite artwork) ||
-                !ConveyorArtworkLibrary.TryGetSlot(out Sprite socketArtwork) ||
-                !ConveyorArtworkLibrary.TryGetRail(out Sprite railArtwork))
+                !ConveyorArtworkLibrary.TryGetAnimation(out animationFrames))
             {
-                SetLegacyRenderersEnabled(true);
                 Debug.LogError(
-                    "The animated hyper-realistic conveyor could not be built; keeping the procedural fallback visible.",
+                    "The clean approved conveyor animation could not be loaded.",
                     this);
                 return;
             }
 
-            GameObject visual = new GameObject("Hyper Realistic Conveyor Artwork");
+            GameObject visual = new GameObject("Exact Approved Pre-Rendered Conveyor");
             visual.transform.SetParent(transform, false);
             visual.transform.localPosition = localPosition;
 
             artworkRenderer = visual.AddComponent<SpriteRenderer>();
-            artworkRenderer.sprite = artwork;
+            artworkRenderer.sprite = animationFrames[0];
             artworkRenderer.color = Color.white;
-            artworkRenderer.sortingOrder = baseSortingOrder;
+            artworkRenderer.sortingOrder = sortingOrder;
+            ScaleLayerUniformlyToWidth(
+                visual.transform,
+                animationFrames[0],
+                targetWidth);
 
-            float sourceWidth = artwork.bounds.size.x;
-            float scale = sourceWidth <= Mathf.Epsilon ? 1f : targetWidth / sourceWidth;
-            visual.transform.localScale = new Vector3(scale, scale, 1f);
-
-            SetLegacyRenderersEnabled(false);
-            ConfigureLiveBeltSurface();
-            ConfigureCenterRail(railArtwork);
-            ConfigureMovingSockets(conveyor, socketArtwork);
+            CacheMechanicalSlots();
+            UpdateAnimationFrame();
         }
 
-        private void ConfigureCenterRail(Sprite railArtwork)
+        private void RemoveObsoleteVisualComponents()
         {
-            GameObject rail = new GameObject("Approved Preview Center Rail");
-            rail.transform.SetParent(transform, false);
-            rail.transform.localPosition = new Vector3(
-                0f,
-                localPosition.y,
-                -0.025f);
-
-            centerRailRenderer = rail.AddComponent<SpriteRenderer>();
-            centerRailRenderer.sprite = railArtwork;
-            centerRailRenderer.color = Color.white;
-            centerRailRenderer.sortingOrder = socketSortingOrder;
-
-            float sourceWidth = railArtwork.bounds.size.x;
-            float scale = sourceWidth <= Mathf.Epsilon ? 1f : centerRailWidth / sourceWidth;
-            rail.transform.localScale = new Vector3(scale, scale, 1f);
-        }
-
-        private void ConfigureLiveBeltSurface()
-        {
-            Transform surface = transform.Find("Track Surface");
-            beltSurfaceRenderer = surface != null ? surface.GetComponent<MeshRenderer>() : null;
-            if (beltSurfaceRenderer == null)
+            MeshRenderer[] meshRenderers = GetComponentsInChildren<MeshRenderer>(true);
+            for (int index = 0; index < meshRenderers.Length; index++)
             {
-                Debug.LogError("The conveyor Track Surface mesh is missing.", this);
-                return;
+                meshRenderers[index].enabled = false;
+                Destroy(meshRenderers[index]);
             }
 
-            beltSurfaceRenderer.sharedMaterial = GetLiveBeltMaterial();
-            beltSurfaceRenderer.enabled = true;
+            MeshFilter[] meshFilters = GetComponentsInChildren<MeshFilter>(true);
+            for (int index = 0; index < meshFilters.Length; index++)
+            {
+                Destroy(meshFilters[index]);
+            }
         }
 
-        private void ConfigureMovingSockets(StadiumConveyorController conveyor, Sprite socketArtwork)
+        private void CacheMechanicalSlots()
         {
             int count = conveyor.ConfiguredSlotViewCount;
-            movingSocketVisuals = new Transform[count];
+            slotRoots = new Transform[count];
+            darkSocketCount = 0;
+            lightSocketCount = 0;
             for (int index = 0; index < count; index++)
             {
-                Transform slotRoot = conveyor.GetSlotView(index);
-                if (slotRoot == null)
+                slotRoots[index] = conveyor.GetSlotView(index);
+                if (IsLightSocket(index))
                 {
-                    continue;
+                    lightSocketCount++;
                 }
-
-                GameObject visual = new GameObject($"Moving Socket Artwork {index + 1:00}");
-                visual.transform.SetParent(slotRoot, false);
-                visual.transform.localPosition = new Vector3(0f, 0f, -0.055f);
-
-                SpriteRenderer renderer = visual.AddComponent<SpriteRenderer>();
-                renderer.sprite = socketArtwork;
-                renderer.color = Color.white;
-                renderer.sortingOrder = socketSortingOrder;
-
-                float sourceHeight = socketArtwork.bounds.size.y;
-                float scale = sourceHeight <= Mathf.Epsilon ? 1f : movingSocketHeight / sourceHeight;
-                Vector3 parentScale = slotRoot.localScale;
-                float inverseParentX = Mathf.Abs(parentScale.x) <= Mathf.Epsilon ? 1f : 1f / parentScale.x;
-                float inverseParentY = Mathf.Abs(parentScale.y) <= Mathf.Epsilon ? 1f : 1f / parentScale.y;
-                visual.transform.localScale = new Vector3(
-                    scale * inverseParentX,
-                    scale * inverseParentY,
-                    1f);
-                movingSocketVisuals[index] = visual.transform;
+                else
+                {
+                    darkSocketCount++;
+                }
             }
         }
 
-        private static Material GetLiveBeltMaterial()
+        private void LateUpdate()
         {
-            if (liveBeltMaterial != null)
-            {
-                return liveBeltMaterial;
-            }
-
-            Shader shader = Shader.Find("Unlit/Texture");
-            if (shader == null)
-            {
-                shader = Shader.Find("Standard");
-            }
-
-            liveBeltTexture = new Texture2D(8, 64, TextureFormat.RGBA32, false)
-            {
-                name = "Live Conveyor Belt Gradient",
-                filterMode = FilterMode.Bilinear,
-                wrapModeU = TextureWrapMode.Repeat,
-                wrapModeV = TextureWrapMode.Clamp,
-                hideFlags = HideFlags.HideAndDontSave
-            };
-
-            Color edge = new Color32(138, 136, 159, 255);
-            Color middle = new Color32(150, 148, 171, 255);
-            Color highlight = new Color32(166, 165, 188, 255);
-            for (int y = 0; y < liveBeltTexture.height; y++)
-            {
-                float normalized = y / (float)(liveBeltTexture.height - 1);
-                float centerDistance = 1f - Mathf.Abs((normalized * 2f) - 1f);
-                float eased = centerDistance * centerDistance * (3f - (2f * centerDistance));
-                Color color = Color.Lerp(edge, middle, eased);
-                color = Color.Lerp(color, highlight, Mathf.Pow(centerDistance, 5f) * 0.2f);
-                for (int x = 0; x < liveBeltTexture.width; x++)
-                {
-                    liveBeltTexture.SetPixel(x, y, color);
-                }
-            }
-
-            liveBeltTexture.Apply(false, true);
-            liveBeltMaterial = new Material(shader)
-            {
-                name = "Live Hyper Realistic Conveyor Belt",
-                mainTexture = liveBeltTexture,
-                hideFlags = HideFlags.HideAndDontSave
-            };
-            return liveBeltMaterial;
+            UpdateAnimationFrame();
         }
 
-        private void SetLegacyRenderersEnabled(bool isEnabled)
+        private void UpdateAnimationFrame()
         {
-            if (legacyRenderers == null)
+            if (artworkRenderer == null || animationFrames == null ||
+                animationFrames.Length == 0 || conveyor == null)
             {
                 return;
             }
 
-            for (int index = 0; index < legacyRenderers.Length; index++)
+            float normalizedFrame = Mathf.Repeat(
+                conveyor.Phase,
+                ConveyorArtworkLibrary.AnimationPhasePeriod) /
+                ConveyorArtworkLibrary.AnimationPhasePeriod;
+            int frameIndex = Mathf.FloorToInt(normalizedFrame * animationFrames.Length) %
+                             animationFrames.Length;
+            if (frameIndex == currentAnimationFrameIndex)
             {
-                if (legacyRenderers[index] != null)
-                {
-                    legacyRenderers[index].enabled = isEnabled;
-                }
+                return;
             }
+
+            currentAnimationFrameIndex = frameIndex;
+            artworkRenderer.sprite = animationFrames[frameIndex];
+        }
+
+        private void ValidateSocketIndex(int index)
+        {
+            if (slotRoots == null || index < 0 || index >= slotRoots.Length || slotRoots[index] == null)
+            {
+                throw new System.ArgumentOutOfRangeException(nameof(index));
+            }
+        }
+
+        private static void ScaleLayerUniformlyToWidth(
+            Transform layer,
+            Sprite artwork,
+            float width)
+        {
+            float sourceWidth = artwork.bounds.size.x;
+            float uniformScale = sourceWidth <= Mathf.Epsilon
+                ? 1f
+                : width / sourceWidth;
+            layer.localScale = new Vector3(uniformScale, uniformScale, 1f);
+        }
+
+        private static bool IsLightSocket(int index)
+        {
+            int sequenceIndex = Mathf.Abs(index) % 24;
+            return sequenceIndex == 0 ||
+                   sequenceIndex == 4 || sequenceIndex == 5 || sequenceIndex == 6 ||
+                   sequenceIndex == 10 || sequenceIndex == 12 ||
+                   sequenceIndex == 16 || sequenceIndex == 17 || sequenceIndex == 18 ||
+                   sequenceIndex == 22;
         }
 
         private void OnValidate()
         {
             targetWidth = Mathf.Max(0.01f, targetWidth);
+            targetHeight = Mathf.Max(0.01f, targetHeight);
+            movingSocketWidth = Mathf.Max(0.01f, movingSocketWidth);
             movingSocketHeight = Mathf.Max(0.01f, movingSocketHeight);
-            centerRailWidth = Mathf.Max(0.01f, centerRailWidth);
         }
     }
 }

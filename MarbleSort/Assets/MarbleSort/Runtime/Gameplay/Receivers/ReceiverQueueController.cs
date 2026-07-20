@@ -169,7 +169,11 @@ namespace MarbleSort.Gameplay.Receivers
             }
 
             ReceiverLaneData lane = currentLevel.receiverLanes[laneIndex];
-            return transform.TransformPoint(new Vector3(lane.position.x, collectionY, -0.16f));
+            Vector3 configuredPoint = transform.TransformPoint(
+                new Vector3(lane.position.x, collectionY, -0.16f));
+            return conveyor != null
+                ? conveyor.GetLowerPathWorldPositionAtX(configuredPoint.x, configuredPoint.z)
+                : configuredPoint;
         }
 
         public bool TryCollectMatchingSlot(int laneIndex, int slotIndex)
@@ -302,10 +306,12 @@ namespace MarbleSort.Gameplay.Receivers
                 Vector3 position = Vector3.LerpUnclamped(start, target, eased);
                 position.y += Mathf.Sin(normalized * Mathf.PI) * transferArcHeight;
                 marble.SetReceiverTransferPosition(position);
+                marble.SetReceiverTransferProgress(eased);
                 yield return null;
             }
 
             marble.SetReceiverTransferPosition(target);
+            marble.SetReceiverTransferProgress(1f);
             marblePool.Return(marble);
             transferringMarbles.Remove(marble);
 
@@ -462,7 +468,7 @@ namespace MarbleSort.Gameplay.Receivers
                         root.transform,
                         artwork.Ball,
                         new Vector3(-0.46f + (index * 0.46f), ReceiverMarkerY, -0.24f),
-                        MarblePool.ActiveMarbleDiameter,
+                        MarblePool.ReceiverMarbleDiameter,
                         sortingBase + 1,
                         fitByHeight: true);
                     markers[index] = marker;

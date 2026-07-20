@@ -14,24 +14,38 @@ namespace MarbleSort.Tests.EditMode
             Assert.That(artwork, Is.Not.Null);
             Assert.That(artwork.texture, Is.Not.Null);
             StringAssert.EndsWith(
-                "/ConveyorChassisRailFree.png",
-                AssetDatabase.GetAssetPath(artwork.texture),
-                "The conveyor must use the rail-free chassis so the center rail cannot be duplicated.");
-            Assert.That(artwork.rect.width / artwork.rect.height, Is.InRange(3.45f, 3.55f));
+                "/ConveyorApprovedReference.png",
+                AssetDatabase.GetAssetPath(artwork.texture));
+            Assert.That(artwork.texture.width, Is.EqualTo(2172));
+            Assert.That(artwork.texture.height, Is.EqualTo(724));
+            Assert.That(artwork.rect, Is.EqualTo(new Rect(100f, 154f, 1970f, 445f)));
+            Assert.That(artwork.rect.width / artwork.rect.height, Is.EqualTo(1970f / 445f).Within(0.001f));
             Assert.That(artwork.texture.wrapMode, Is.EqualTo(TextureWrapMode.Clamp));
             Assert.That(artwork.texture.mipmapCount, Is.EqualTo(1));
 
-            Assert.That(ConveyorArtworkLibrary.TryGetSlot(out Sprite slot), Is.True);
-            Assert.That(slot, Is.Not.Null);
-            Assert.That(slot.rect.width / slot.rect.height, Is.InRange(0.65f, 0.72f));
-            Assert.That(slot.texture.wrapMode, Is.EqualTo(TextureWrapMode.Clamp));
-            Assert.That(slot.texture.mipmapCount, Is.EqualTo(1));
+            Assert.That(ConveyorArtworkLibrary.TryGetBeltLoop(out Texture2D beltLoop), Is.True);
+            Assert.That(beltLoop, Is.Not.Null);
+            StringAssert.EndsWith(
+                "/ConveyorApprovedBeltLoop.png",
+                AssetDatabase.GetAssetPath(beltLoop));
+            Assert.That(beltLoop.width, Is.EqualTo(1920));
+            Assert.That(beltLoop.height, Is.EqualTo(128));
+            Assert.That(beltLoop.wrapMode, Is.EqualTo(TextureWrapMode.Repeat));
+            Assert.That(beltLoop.mipmapCount, Is.EqualTo(1));
 
-            Assert.That(ConveyorArtworkLibrary.TryGetRail(out Sprite rail), Is.True);
-            Assert.That(rail, Is.Not.Null);
-            Assert.That(rail.rect.width / rail.rect.height, Is.InRange(16.5f, 16.9f));
-            Assert.That(rail.texture.wrapMode, Is.EqualTo(TextureWrapMode.Clamp));
-            Assert.That(rail.texture.mipmapCount, Is.EqualTo(1));
+            Assert.That(ConveyorArtworkLibrary.TryGetAnimation(out Sprite[] frames), Is.True);
+            Assert.That(
+                frames.Length,
+                Is.EqualTo(ConveyorArtworkLibrary.ExpectedAnimationFrameCount));
+            Assert.That(
+                frames[0].texture.width,
+                Is.EqualTo(ConveyorArtworkLibrary.AnimationFrameWidth));
+            Assert.That(
+                frames[0].texture.height,
+                Is.EqualTo(ConveyorArtworkLibrary.AnimationFrameHeight));
+            Assert.That(frames[0].texture, Is.Not.SameAs(frames[24].texture));
+            Assert.That(frames[0].texture.wrapMode, Is.EqualTo(TextureWrapMode.Clamp));
+            Assert.That(frames[0].texture.mipmapCount, Is.EqualTo(1));
         }
     }
 }

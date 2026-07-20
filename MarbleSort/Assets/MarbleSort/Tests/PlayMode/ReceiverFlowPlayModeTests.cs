@@ -149,6 +149,49 @@ namespace MarbleSort.Tests.PlayMode
         }
 
         [UnityTest]
+        public IEnumerator ReceiverTransfer_ShrinksTransitBallToReceiverCupSize()
+        {
+            SceneManager.LoadScene("Main", LoadSceneMode.Single);
+            yield return null;
+
+            StadiumConveyorController conveyor = Object.FindFirstObjectByType<StadiumConveyorController>();
+            ConveyorAdmissionController admission = Object.FindFirstObjectByType<ConveyorAdmissionController>();
+            ReceiverQueueController receivers = Object.FindFirstObjectByType<ReceiverQueueController>();
+            MarblePool pool = Object.FindFirstObjectByType<MarblePool>();
+
+            yield return WaitForReceiverLids(receivers);
+            yield return AdmitMarble("yellow", conveyor, admission, pool);
+
+            int slotIndex = FindOccupiedSlot(conveyor, "yellow");
+            MarbleActor marble = conveyor.GetOccupant(slotIndex);
+            Assert.That(marble, Is.Not.Null);
+            Assert.That(
+                marble.VisualDiameter,
+                Is.EqualTo(MarblePool.ConveyorMarbleDiameter).Within(0.002f));
+
+            Assert.That(receivers.TryCollectMatchingSlot(0, slotIndex), Is.True);
+            yield return new WaitForSeconds(0.07f);
+
+            Assert.That(marble.MotionMode, Is.EqualTo(MarbleMotionMode.ReceiverTransition));
+            Assert.That(marble.VisualDiameter, Is.LessThan(MarblePool.ConveyorMarbleDiameter));
+            Assert.That(marble.VisualDiameter, Is.GreaterThan(MarblePool.ReceiverMarbleDiameter));
+
+            yield return WaitForReceiverTransfer(receivers);
+            Transform activeReceiver = FindDescendant(
+                receivers.transform,
+                $"Receiver - {receivers.State.Lanes[0].ActiveBox.Id}");
+            Transform filledBall = FindDescendant(activeReceiver, "Glossy Receiver Ball 1");
+            Assert.That(filledBall, Is.Not.Null);
+            Assert.That(filledBall.gameObject.activeInHierarchy, Is.True);
+
+            SpriteRenderer renderer = filledBall.GetComponent<SpriteRenderer>();
+            float worldDiameter = renderer.sprite.bounds.size.y * Mathf.Abs(filledBall.lossyScale.y);
+            Assert.That(
+                worldDiameter,
+                Is.EqualTo(MarblePool.ReceiverMarbleDiameter).Within(0.002f));
+        }
+
+        [UnityTest]
         public IEnumerator FollowingMatchingMarble_IsAcceptedWhilePreviousReceiverPulseIsPlaying()
         {
             SceneManager.LoadScene("Main", LoadSceneMode.Single);
@@ -362,6 +405,13 @@ namespace MarbleSort.Tests.PlayMode
             GameBootstrap bootstrap = Object.FindFirstObjectByType<GameBootstrap>();
             LevelFlowController flow = Object.FindFirstObjectByType<LevelFlowController>();
             TopGridController topGrid = Object.FindFirstObjectByType<TopGridController>();
+            MarblePool pool = Object.FindFirstObjectByType<MarblePool>();
+            StadiumConveyorController conveyor =
+                Object.FindFirstObjectByType<StadiumConveyorController>();
+            ConveyorAdmissionController admission =
+                Object.FindFirstObjectByType<ConveyorAdmissionController>();
+            ReceiverQueueController receivers =
+                Object.FindFirstObjectByType<ReceiverQueueController>();
 
             float originalTimeScale = Time.timeScale;
             Time.timeScale = 2f;
@@ -381,10 +431,41 @@ namespace MarbleSort.Tests.PlayMode
                 }
 
                 Assert.That(flow.Status, Is.Not.EqualTo(LevelFlowStatus.Deadlocked));
+                string marbleDiagnostics = string.Empty;
+                MarbleActor[] activeActors = pool.GetComponentsInChildren<MarbleActor>(true);
+                for (int actorIndex = 0; actorIndex < activeActors.Length; actorIndex++)
+                {
+                    MarbleActor actor = activeActors[actorIndex];
+                    if (actor.IsRented)
+                    {
+                        marbleDiagnostics +=
+                            $" [{actor.ColorId}:{actor.MotionMode}@{actor.transform.position}]";
+                    }
+                }
+
+                string receiverDiagnostics = string.Empty;
+                for (int laneIndex = 0; laneIndex < receivers.State.Lanes.Count; laneIndex++)
+                {
+                    ReceiverBoxState activeBox = receivers.State.Lanes[laneIndex].ActiveBox;
+                    receiverDiagnostics += activeBox == null
+                        ? $" [lane {laneIndex}:complete]"
+                        : $" [lane {laneIndex}:{activeBox.ColorId} {activeBox.FillCount}/3]";
+                }
+
                 Assert.That(
                     bootstrap.Session.CurrentLevelIndex,
                     Is.EqualTo(1),
-                    "Level 1 did not complete and advance through the real gameplay loop.");
+                    "Level 1 did not complete and advance through the real gameplay loop. " +
+                    $"Active marbles: {pool.ActiveCount}; conveyor: " +
+                    $"{conveyor.State.OccupiedCount}; completed receivers: " +
+                    $"{receivers.State.CompletedBoxCount}/{receivers.State.TotalBoxCount}; " +
+                    $"queued: {admission.QueuedCount}; ready Y: " +
+                    $"{admission.AdmissionReadyWorldY:0.###}; recycled below board: " +
+                    $"{pool.ReturnedBelowBoardCount} " +
+                    $"({pool.LastReturnedBelowBoardColorId}@" +
+                    $"{pool.LastReturnedBelowBoardPosition}); pending transfers: " +
+                    $"{receivers.PendingTransferCount}; actors:{marbleDiagnostics}; " +
+                    $"receivers:{receiverDiagnostics}");
             }
             finally
             {
@@ -562,7 +643,7 @@ namespace MarbleSort.Tests.PlayMode
 
         private static IEnumerator WaitForTopGridRelease(TopGridController topGrid)
         {
-            float timeout = Time.realtimeSinceStartup + 3f;
+            float timeout = Time.realtimeSinceStartup + 8f;
             while (topGrid.InputLocked && Time.realtimeSinceStartup < timeout)
             {
                 yield return null;

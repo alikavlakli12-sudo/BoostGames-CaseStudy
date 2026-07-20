@@ -11,6 +11,20 @@ namespace MarbleSort.Gameplay.Conveyor
     [RequireComponent(typeof(BoxCollider))]
     public sealed class ConveyorAdmissionController : MonoBehaviour
     {
+        public const float ChuteGateLocalY = -0.34f;
+        public const float ChuteTriggerCenterY = 0.15f;
+        public const float ChuteTriggerWidth = 0.76f;
+        public const float ChuteTriggerHeight = 1.7f;
+        public const float ChuteTriggerDepth = 0.6f;
+        // The gate surface sits at -0.26 local Y and the ball radius is 0.26. A small
+        // crowding allowance keeps the lowest ball eligible even while another ball
+        // presses on it, without starting guided motion high inside the funnel.
+        public const float AdmissionReadyLocalY = 0.18f;
+        public const float AntiBridgeAssistLocalY = 0.9f;
+        private const float AntiBridgeDownAcceleration = 45f;
+        private const float AntiBridgeCenterAcceleration = 90f;
+        private const float AntiBridgePartnerLiftAcceleration = 55f;
+
         [SerializeField] private StadiumConveyorController conveyor;
         [SerializeField, Min(0f)] private float transitionDuration = 0.16f;
         [SerializeField, Range(0.001f, 0.04f)] private float admissionWindowNormalized = 0.011f;
@@ -19,6 +33,7 @@ namespace MarbleSort.Gameplay.Conveyor
         private readonly List<MarbleActor> queuedMarbles = new List<MarbleActor>(72);
         private Coroutine transitionRoutine;
         private MarbleActor transitioningMarble;
+        private MarbleActor lastAdmittedMarble;
         private int transitioningSlot = -1;
 
         public event Action<int, string, MarbleActor> MarbleAdmitted;
@@ -26,6 +41,17 @@ namespace MarbleSort.Gameplay.Conveyor
         public int QueuedCount => queuedMarbles.Count;
 
         public bool IsTransitioning => transitioningMarble != null;
+
+        public float RequiredChuteClearance =>
+            MarblePool.TransitMarbleDiameter + MarblePool.MinimumMarbleSeparation;
+
+        public Vector3 ChuteExitWorldPosition =>
+            transform.TransformPoint(new Vector3(0f, ChuteGateLocalY, 0f));
+
+        public float AdmissionReadyWorldY =>
+            transform.TransformPoint(new Vector3(0f, AdmissionReadyLocalY, 0f)).y;
+
+        public Vector3 LastTransitionStartPosition { get; private set; }
 
         public void Configure(
             StadiumConveyorController conveyorController,
@@ -40,6 +66,11 @@ namespace MarbleSort.Gameplay.Conveyor
 
             BoxCollider trigger = GetComponent<BoxCollider>();
             trigger.isTrigger = true;
+            trigger.center = new Vector3(0f, ChuteTriggerCenterY, 0f);
+            trigger.size = new Vector3(
+                ChuteTriggerWidth,
+                ChuteTriggerHeight,
+                ChuteTriggerDepth);
         }
 
         public bool TryQueue(MarbleActor marble)
@@ -77,6 +108,17 @@ namespace MarbleSort.Gameplay.Conveyor
                 return;
             }
 
+            if (!IsChuteClear())
+            {
+                return;
+            }
+
+            MarbleActor marble = FindLowestQueuedMarble();
+            if (marble == null || marble.transform.position.y > AdmissionReadyWorldY)
+            {
+                return;
+            }
+
             int slotIndex = conveyor.GetClosestSlotToEntrance(out float normalizedDistance);
             if (normalizedDistance > admissionWindowNormalized ||
                 !conveyor.State.CanReserve(slotIndex))
@@ -84,21 +126,91 @@ namespace MarbleSort.Gameplay.Conveyor
                 return;
             }
 
-            MarbleActor marble = TakeLowestQueuedMarble();
-            if (marble == null || !conveyor.TryReserveSlot(slotIndex, marble))
+            if (!conveyor.TryReserveSlot(slotIndex, marble))
             {
                 return;
             }
 
+            LastTransitionStartPosition = marble.transform.position;
             if (!marble.BeginConveyorTransition())
             {
                 conveyor.CancelReservation(slotIndex);
                 return;
             }
 
+            queuedMarbles.Remove(marble);
             transitioningMarble = marble;
             transitioningSlot = slotIndex;
             transitionRoutine = StartCoroutine(AnimateAdmission(marble, slotIndex));
+        }
+
+        private void FixedUpdate()
+        {
+            if (transitioningMarble != null || queuedMarbles.Count == 0)
+            {
+                return;
+            }
+
+            MarbleActor lowest = FindLowestQueuedMarble();
+            if (lowest == null || lowest.Body == null ||
+                lowest.MotionMode != MarbleMotionMode.LoosePhysics)
+            {
+                return;
+            }
+
+            Vector3 localPosition = transform.InverseTransformPoint(
+                lowest.transform.position);
+            if (localPosition.y <= AdmissionReadyLocalY ||
+                localPosition.y > AntiBridgeAssistLocalY)
+            {
+                return;
+            }
+
+            float centerAcceleration = Mathf.Clamp(
+                -localPosition.x * AntiBridgeCenterAcceleration,
+                -28f,
+                28f);
+            lowest.Body.AddForce(
+                new Vector3(centerAcceleration, -AntiBridgeDownAcceleration, 0f),
+                ForceMode.Acceleration);
+
+            MarbleActor bridgePartner = FindBridgePartner(lowest, localPosition);
+            if (bridgePartner != null && bridgePartner.Body != null)
+            {
+                bridgePartner.Body.AddForce(
+                    new Vector3(0f, AntiBridgePartnerLiftAcceleration, 0f),
+                    ForceMode.Acceleration);
+            }
+        }
+
+        private MarbleActor FindBridgePartner(
+            MarbleActor selected,
+            Vector3 selectedLocalPosition)
+        {
+            for (int index = 0; index < queuedMarbles.Count; index++)
+            {
+                MarbleActor candidate = queuedMarbles[index];
+                if (candidate == null || candidate == selected ||
+                    candidate.MotionMode != MarbleMotionMode.LoosePhysics)
+                {
+                    continue;
+                }
+
+                Vector3 candidateLocalPosition = transform.InverseTransformPoint(
+                    candidate.transform.position);
+                if (candidateLocalPosition.y <= AdmissionReadyLocalY ||
+                    candidateLocalPosition.y > AntiBridgeAssistLocalY ||
+                    Mathf.Abs(candidateLocalPosition.y - selectedLocalPosition.y) > 0.2f ||
+                    Mathf.Sign(candidateLocalPosition.x) ==
+                    Mathf.Sign(selectedLocalPosition.x))
+                {
+                    continue;
+                }
+
+                return candidate;
+            }
+
+            return null;
         }
 
         private IEnumerator AnimateAdmission(MarbleActor marble, int slotIndex)
@@ -112,10 +224,11 @@ namespace MarbleSort.Gameplay.Conveyor
                 {
                     elapsed += Time.deltaTime;
                     float normalized = Mathf.Clamp01(elapsed / transitionDuration);
-                    float eased = normalized * normalized * (3f - (2f * normalized));
+                    // The ball has already fallen through the full chute under gravity.
+                    // Finish with a short accelerating downward settle, never an upward arc.
+                    float eased = normalized * normalized;
                     Vector3 target = conveyor.GetSlotWorldPosition(slotIndex);
                     Vector3 position = Vector3.LerpUnclamped(start, target, eased);
-                    position.y += Mathf.Sin(normalized * Mathf.PI) * transitionArcHeight;
                     marble.SetConveyorTransitionPosition(position);
                     yield return null;
                 }
@@ -128,6 +241,7 @@ namespace MarbleSort.Gameplay.Conveyor
         {
             if (conveyor.CommitAdmission(slotIndex, marble))
             {
+                lastAdmittedMarble = marble;
                 MarbleAdmitted?.Invoke(slotIndex, marble.ColorId, marble);
             }
             else
@@ -141,7 +255,7 @@ namespace MarbleSort.Gameplay.Conveyor
             transitionRoutine = null;
         }
 
-        private MarbleActor TakeLowestQueuedMarble()
+        private MarbleActor FindLowestQueuedMarble()
         {
             int selectedIndex = -1;
             float lowestY = float.MaxValue;
@@ -170,11 +284,29 @@ namespace MarbleSort.Gameplay.Conveyor
                 return null;
             }
 
-            MarbleActor selected = queuedMarbles[selectedIndex];
-            int lastIndex = queuedMarbles.Count - 1;
-            queuedMarbles[selectedIndex] = queuedMarbles[lastIndex];
-            queuedMarbles.RemoveAt(lastIndex);
-            return selected;
+            return queuedMarbles[selectedIndex];
+        }
+
+        private bool IsChuteClear()
+        {
+            if (lastAdmittedMarble == null || !lastAdmittedMarble.IsRented ||
+                lastAdmittedMarble.MotionMode != MarbleMotionMode.Conveyor)
+            {
+                lastAdmittedMarble = null;
+                return true;
+            }
+
+            Vector3 difference = lastAdmittedMarble.transform.position - ChuteExitWorldPosition;
+            float planarDistanceSquared =
+                (difference.x * difference.x) + (difference.y * difference.y);
+            float requiredDistance = RequiredChuteClearance;
+            if (planarDistanceSquared < requiredDistance * requiredDistance)
+            {
+                return false;
+            }
+
+            lastAdmittedMarble = null;
+            return true;
         }
 
         private void PruneQueue()
@@ -233,6 +365,7 @@ namespace MarbleSort.Gameplay.Conveyor
 
             transitionRoutine = null;
             transitioningMarble = null;
+            lastAdmittedMarble = null;
             transitioningSlot = -1;
             queuedMarbles.Clear();
         }
@@ -247,6 +380,11 @@ namespace MarbleSort.Gameplay.Conveyor
             if (trigger != null)
             {
                 trigger.isTrigger = true;
+                trigger.center = new Vector3(0f, ChuteTriggerCenterY, 0f);
+                trigger.size = new Vector3(
+                    ChuteTriggerWidth,
+                    ChuteTriggerHeight,
+                    ChuteTriggerDepth);
             }
         }
     }

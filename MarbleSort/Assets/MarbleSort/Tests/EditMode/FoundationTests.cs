@@ -136,6 +136,37 @@ namespace MarbleSort.Tests.EditMode
         }
 
         [Test]
+        public void StadiumPath_LeftTurn_RotatesContinuouslyThroughDiagonalAndHorizontalPoses()
+        {
+            const float straightLength = 5f;
+            const float turnRadius = 0.55f;
+            float perimeter = StadiumPath.GetPerimeter(straightLength, turnRadius);
+            float arcStart = straightLength / perimeter;
+            float quarterArc = (Mathf.PI * turnRadius * 0.25f) / perimeter;
+
+            StadiumPose top = StadiumPath.Evaluate(arcStart, straightLength, turnRadius);
+            StadiumPose upperDiagonal = StadiumPath.Evaluate(
+                arcStart + quarterArc,
+                straightLength,
+                turnRadius);
+            StadiumPose side = StadiumPath.Evaluate(
+                arcStart + (quarterArc * 2f),
+                straightLength,
+                turnRadius);
+            StadiumPose lowerDiagonal = StadiumPath.Evaluate(
+                arcStart + (quarterArc * 3f),
+                straightLength,
+                turnRadius);
+
+            Assert.That(Vector3.Angle(top.Tangent, Vector3.left), Is.LessThan(0.01f));
+            Assert.That(upperDiagonal.Tangent.x, Is.LessThan(-0.6f));
+            Assert.That(upperDiagonal.Tangent.y, Is.LessThan(-0.6f));
+            Assert.That(Vector3.Angle(side.Tangent, Vector3.down), Is.LessThan(0.01f));
+            Assert.That(lowerDiagonal.Tangent.x, Is.GreaterThan(0.6f));
+            Assert.That(lowerDiagonal.Tangent.y, Is.LessThan(-0.6f));
+        }
+
+        [Test]
         public void ConveyorState_ReservationPreventsDoubleOccupancy()
         {
             ConveyorState state = new ConveyorState(24);

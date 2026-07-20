@@ -31,12 +31,16 @@ namespace MarbleSort.Gameplay.Conveyor
 
         public float Phase => phase;
 
+        public float StraightLength => straightLength;
+
+        public float TurnRadius => turnRadius;
+
         public ConveyorState State => state;
 
         public int ConfiguredSlotViewCount => slotViews?.Length ?? 0;
 
         public float EntranceNormalizedDistance =>
-            StadiumPath.GetTopCenterNormalizedDistance(straightLength, turnRadius);
+            ApprovedConveyorPath.EntranceNormalizedDistance;
 
         public void Configure(
             GameBootstrap gameBootstrap,
@@ -74,6 +78,30 @@ namespace MarbleSort.Gameplay.Conveyor
             }
 
             return slotViews[index].position + new Vector3(0f, 0f, occupantDepth);
+        }
+
+        public Vector3 GetLowerPathWorldPositionAtX(float worldX, float worldZ)
+        {
+            Vector3 localPoint = transform.InverseTransformPoint(
+                new Vector3(worldX, transform.position.y, worldZ));
+            float halfStraight = straightLength * 0.5f;
+            float absoluteX = Mathf.Abs(localPoint.x);
+            float lowerY;
+
+            if (absoluteX <= halfStraight)
+            {
+                lowerY = -turnRadius;
+            }
+            else
+            {
+                float arcX = Mathf.Min(absoluteX - halfStraight, turnRadius);
+                lowerY = -Mathf.Sqrt(Mathf.Max(0f, (turnRadius * turnRadius) - (arcX * arcX)));
+            }
+
+            localPoint.y = lowerY;
+            Vector3 worldPoint = transform.TransformPoint(localPoint);
+            worldPoint.z = worldZ;
+            return worldPoint;
         }
 
         public MarbleActor GetOccupant(int index)
@@ -294,7 +322,7 @@ namespace MarbleSort.Gameplay.Conveyor
                 }
 
                 float normalizedDistance = phase + (index / (float)slotCount);
-                StadiumPose pose = StadiumPath.Evaluate(normalizedDistance, straightLength, turnRadius);
+                StadiumPose pose = ApprovedConveyorPath.Evaluate(normalizedDistance);
                 slot.localPosition = pose.Position;
                 float angle = Mathf.Atan2(pose.Tangent.y, pose.Tangent.x) * Mathf.Rad2Deg;
                 slot.localRotation = Quaternion.Euler(0f, 0f, angle);

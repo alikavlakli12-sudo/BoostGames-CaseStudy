@@ -40,10 +40,18 @@ namespace MarbleSort.Editor
             importer.mipmapEnabled = false;
             importer.isReadable = false;
             importer.npotScale = TextureImporterNPOTScale.None;
-            importer.wrapMode = TextureWrapMode.Clamp;
+            importer.wrapMode = assetPath.EndsWith(
+                "/ConveyorApprovedBeltLoop.png",
+                System.StringComparison.Ordinal)
+                ? TextureWrapMode.Repeat
+                : TextureWrapMode.Clamp;
             importer.filterMode = FilterMode.Bilinear;
             importer.textureCompression = TextureImporterCompression.Uncompressed;
-            importer.maxTextureSize = 2048;
+            importer.maxTextureSize = assetPath.EndsWith(
+                "/ConveyorApprovedReference.png",
+                System.StringComparison.Ordinal)
+                ? 4096
+                : 2048;
         }
     }
 }

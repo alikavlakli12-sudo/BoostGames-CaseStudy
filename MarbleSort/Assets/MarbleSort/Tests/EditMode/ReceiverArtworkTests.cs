@@ -35,9 +35,10 @@ namespace MarbleSort.Tests.EditMode
             Assert.That(TopTrayArtworkLibrary.TryGet(colorId, out TopTrayArtwork topTray), Is.True);
             Assert.That(ReceiverArtworkLibrary.TryGet(colorId, out ReceiverArtwork receiver), Is.True);
             Assert.That(topTray.IsValid, Is.True);
-            Assert.That(topTray.Tray.rect.width / topTray.Tray.rect.height, Is.InRange(0.99f, 1.02f));
+            Assert.That(topTray.Tray.rect.width / topTray.Tray.rect.height, Is.InRange(1.03f, 1.04f));
             Assert.That(topTray.Tray.texture.wrapMode, Is.EqualTo(TextureWrapMode.Clamp));
-            Assert.That(topTray.Tray.texture.mipmapCount, Is.EqualTo(1));
+            Assert.That(topTray.Tray.texture.filterMode, Is.EqualTo(FilterMode.Trilinear));
+            Assert.That(topTray.Tray.texture.mipmapCount, Is.GreaterThan(1));
             Assert.That(topTray.Ball, Is.SameAs(receiver.Ball));
         }
     }

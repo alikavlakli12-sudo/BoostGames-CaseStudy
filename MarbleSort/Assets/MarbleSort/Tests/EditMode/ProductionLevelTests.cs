@@ -17,8 +17,10 @@ namespace MarbleSort.Tests.EditMode
         public void ProductionLevels_FollowTheApprovedDifficultyCurve()
         {
             LevelCatalogData catalog = LoadProductionCatalog();
-            int[] expectedTopBoxCounts = { 2, 3, 4, 6, 8 };
-            int[] expectedMaximumDepths = { 1, 1, 1, 2, 3 };
+            int[] expectedTopBoxCounts = { 6, 6, 9, 12, 8 };
+            int[] expectedVisibleBoxCounts = { 4, 2, 3, 4, 4 };
+            int[] expectedColorCounts = { 2, 3, 4, 4, 4 };
+            int[] expectedMaximumDepths = { 2, 2, 3, 3, 3 };
 
             Assert.That(catalog.levels.Length, Is.EqualTo(expectedTopBoxCounts.Length));
             for (int levelIndex = 0; levelIndex < catalog.levels.Length; levelIndex++)
@@ -28,6 +30,14 @@ namespace MarbleSort.Tests.EditMode
                     level.topGrid.boxes.Length,
                     Is.EqualTo(expectedTopBoxCounts[levelIndex]),
                     $"Unexpected top-box count in {level.displayName}.");
+                Assert.That(
+                    GetVisibleBoxCount(level.topGrid.boxes),
+                    Is.EqualTo(expectedVisibleBoxCounts[levelIndex]),
+                    $"Unexpected initially visible top-box count in {level.displayName}.");
+                Assert.That(
+                    GetDistinctColorCount(level.topGrid.boxes),
+                    Is.EqualTo(expectedColorCounts[levelIndex]),
+                    $"Unexpected color count in {level.displayName}.");
                 Assert.That(
                     GetMaximumDepth(level.topGrid.boxes),
                     Is.EqualTo(expectedMaximumDepths[levelIndex]),
@@ -130,6 +140,31 @@ namespace MarbleSort.Tests.EditMode
             }
 
             return maximumDepth;
+        }
+
+        private static int GetVisibleBoxCount(TopBoxData[] boxes)
+        {
+            int visibleCount = 0;
+            for (int index = 0; index < boxes.Length; index++)
+            {
+                if (boxes[index].row == 0)
+                {
+                    visibleCount++;
+                }
+            }
+
+            return visibleCount;
+        }
+
+        private static int GetDistinctColorCount(TopBoxData[] boxes)
+        {
+            HashSet<string> colors = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            for (int index = 0; index < boxes.Length; index++)
+            {
+                colors.Add(boxes[index].color);
+            }
+
+            return colors.Count;
         }
 
         private static void AssertIssue(ValidationReport report, string expectedCode)

@@ -17,8 +17,8 @@ This document converts the supplied case-study brief, screenshot, and gameplay r
 - A box is exposed only when no box occupies a lower row in its column.
 - Only exposed boxes accept input. Input is locked while that selection is being released.
 - Selecting a box releases nine pooled rigidbody marbles into the basin.
-- When the release finishes, the empty box is removed and boxes above it collapse downward in that column.
-- The newly lowest box in the column becomes exposed and selectable.
+- When the release finishes, the empty box is removed but every remaining tray stays at its authored grid coordinate.
+- A hidden tray becomes exposed and selectable after a tray directly in front of it or directly beside it is cleared. Diagonal and pre-existing empty cells do not trigger a reveal.
 
 ## Loose marbles and entrance
 

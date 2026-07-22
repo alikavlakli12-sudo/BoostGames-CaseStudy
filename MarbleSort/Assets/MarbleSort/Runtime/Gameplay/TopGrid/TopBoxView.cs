@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using MarbleSort.Gameplay.Marbles;
 using MarbleSort.Presentation;
 using UnityEngine;
@@ -8,20 +9,29 @@ namespace MarbleSort.Gameplay.TopGrid
     [DisallowMultipleComponent]
     public sealed class TopBoxView : MonoBehaviour
     {
+        public const float ExposedRestingScale = 0.95f;
+        public const float ClosedRestingScale = 0.965f;
+
         private readonly Transform[] marbleMarkers = new Transform[MarbleReleasePattern.MarbleCount];
-        private readonly Renderer[] closedRenderers = new Renderer[4];
         private Collider inputCollider;
+        private GameObject hiddenTrayRoot;
+        private GameObject hiddenShadowRoot;
         private GameObject trayContentRoot;
         private GameObject markerRoot;
+        private SpriteRenderer bakedTrayRenderer;
+        private Sprite[] bakedOccupancyFrames;
         private Material ballMaterial;
         private bool exposed;
         private bool interactionEnabled;
         private float targetScale = 1f;
         private float currentScale = 1f;
-        private float pulsePhase;
+        private bool disappearing;
 
-        private const float TraySpacing = 0.278f;
-        private const float TrayBallHeight = 0.215f;
+        // The top-grid root is presented at 1.18 scale. Cancel that parent scale so the
+        // resting balls keep their exact intended world-space diameter.
+        private const float TrayBallHeight = MarblePool.RestingMarbleDiameter / 1.18f;
+        private static readonly float[] ApprovedBallColumns = { -0.264f, -0.002f, 0.260f };
+        private static readonly float[] ApprovedBallRows = { 0.276f, 0.038f, -0.195f };
 
         public string BoxId { get; private set; } = string.Empty;
 
@@ -29,7 +39,19 @@ namespace MarbleSort.Gameplay.TopGrid
 
         public bool TrayVisible => trayContentRoot != null && trayContentRoot.activeSelf;
 
+        public bool HiddenTrayVisible => hiddenTrayRoot != null && hiddenTrayRoot.activeSelf;
+
+        public bool HiddenArtworkLoaded =>
+            hiddenTrayRoot != null && hiddenTrayRoot.GetComponent<SpriteRenderer>()?.sprite != null;
+
+        public string HiddenArtworkName => hiddenTrayRoot == null
+            ? string.Empty
+            : hiddenTrayRoot.GetComponent<SpriteRenderer>()?.sprite?.name ?? string.Empty;
+
         public Material BallMaterial => ballMaterial;
+
+        public int CurrentBakedRemainingCount { get; private set; } =
+            MarbleReleasePattern.MarbleCount;
 
         public int VisibleMarkerCount
         {
@@ -53,31 +75,10 @@ namespace MarbleSort.Gameplay.TopGrid
             BoxId = boxId;
             ColorId = MarblePalette.Normalize(colorId);
             name = $"Top Box - {BoxId}";
-            pulsePhase = Mathf.Abs(Animator.StringToHash(BoxId) % 628) * 0.01f;
             ballMaterial = PresentationMaterialLibrary.GetGlossyBall(material);
 
-            GameObject shadow = PresentationMeshFactory.CreateRoundedBox(
-                "Soft Shadow",
-                transform,
-                0.98f,
-                0.98f,
-                0.24f,
-                0.2f,
-                PresentationMaterialLibrary.GetSoftShadow());
-            shadow.transform.localPosition = new Vector3(0.035f, -0.06f, 0.16f);
-            closedRenderers[0] = shadow.GetComponent<Renderer>();
-
-            GameObject outline = PresentationMeshFactory.CreateRoundedBox(
-                "Color Outline",
-                transform,
-                0.96f,
-                0.96f,
-                0.32f,
-                0.2f,
-                PresentationMaterialLibrary.GetDarkened(material));
-            outline.transform.localPosition = new Vector3(0f, -0.015f, 0.06f);
-            closedRenderers[1] = outline.GetComponent<Renderer>();
-
+            // Keep one invisible input volume for the exposed tray. The hidden
+            // visual itself is the approved baked sprite, never procedural mesh art.
             GameObject shell = PresentationMeshFactory.CreateRoundedBox(
                 "Box Shell",
                 transform,
@@ -88,18 +89,32 @@ namespace MarbleSort.Gameplay.TopGrid
                 material,
                 true);
             inputCollider = shell.GetComponent<Collider>();
-            closedRenderers[2] = shell.GetComponent<Renderer>();
+            // This volume exists only so the tray can be selected. Keeping it as
+            // a trigger prevents released marbles from landing on or wedging
+            // between trays while preserving pointer raycasts.
+            inputCollider.isTrigger = true;
+            shell.GetComponent<Renderer>().enabled = false;
 
-            GameObject highlight = PresentationMeshFactory.CreateRoundedBox(
-                "Top Highlight",
+            if (!HiddenTopTrayArtworkLibrary.TryGet(ColorId, out Sprite hiddenArtwork))
+            {
+                throw new InvalidOperationException(
+                    $"Hidden top-tray artwork is unavailable for color '{ColorId}'.");
+            }
+
+            hiddenTrayRoot = CreateSpriteVisual(
+                "Approved Thin Hidden Tray",
                 transform,
-                0.62f,
-                0.075f,
-                0.025f,
-                0.035f,
-                PresentationMaterialLibrary.GetHighlight(material));
-            highlight.transform.localPosition = new Vector3(-0.03f, 0.33f, -0.19f);
-            closedRenderers[3] = highlight.GetComponent<Renderer>();
+                hiddenArtwork,
+                new Vector3(0f, 0f, -0.31f),
+                0.965f,
+                30);
+            hiddenShadowRoot = CreateLightCastShadow(
+                "Hidden Tray Light Shadow",
+                transform,
+                hiddenArtwork,
+                new Vector3(0f, 0f, -0.30f),
+                0.965f,
+                29);
 
             trayContentRoot = new GameObject("Exposed Nine-Cup Tray");
             trayContentRoot.transform.SetParent(transform, false);
@@ -109,20 +124,34 @@ namespace MarbleSort.Gameplay.TopGrid
                 throw new InvalidOperationException($"Top-tray artwork is unavailable for color '{ColorId}'.");
             }
 
-            CreateSpriteVisual(
+            bakedOccupancyFrames = artwork.OccupancyFrames;
+            CreateLightCastShadow(
+                "Exposed Tray Light Shadow",
+                trayContentRoot.transform,
+                artwork.GetFrame(MarbleReleasePattern.MarbleCount),
+                new Vector3(0f, 0f, -0.30f),
+                0.98f,
+                29);
+            GameObject bakedTray = CreateSpriteVisual(
                 "Hyper Realistic 3x3 Tray",
                 trayContentRoot.transform,
-                artwork.Tray,
+                artwork.GetFrame(MarbleReleasePattern.MarbleCount),
                 new Vector3(0f, 0f, -0.31f),
                 0.98f,
                 30);
+            bakedTrayRenderer = bakedTray.GetComponent<SpriteRenderer>();
 
             markerRoot = new GameObject("Nine Marble Markers");
             markerRoot.transform.SetParent(trayContentRoot.transform, false);
 
             for (int index = 0; index < marbleMarkers.Length; index++)
             {
-                Vector3 markerPosition = MarbleReleasePattern.GetLocalPosition(index, TraySpacing, -0.36f);
+                int column = index % 3;
+                int row = index / 3;
+                Vector3 markerPosition = new Vector3(
+                    ApprovedBallColumns[column],
+                    ApprovedBallRows[row],
+                    -0.36f);
                 GameObject marker = CreateSpriteVisual(
                     $"Marker {index + 1:00}",
                     markerRoot.transform,
@@ -133,6 +162,7 @@ namespace MarbleSort.Gameplay.TopGrid
                     fitByHeight: true);
 
                 marbleMarkers[index] = marker.transform;
+                marker.GetComponent<SpriteRenderer>().enabled = false;
             }
 
             SetExposed(false);
@@ -143,15 +173,12 @@ namespace MarbleSort.Gameplay.TopGrid
         {
             exposed = isExposed;
             trayContentRoot.SetActive(exposed);
-            for (int index = 0; index < closedRenderers.Length; index++)
-            {
-                if (closedRenderers[index] != null)
-                {
-                    closedRenderers[index].enabled = !exposed;
-                }
-            }
+            hiddenTrayRoot.SetActive(!exposed);
+            hiddenShadowRoot.SetActive(!exposed);
 
-            targetScale = exposed ? 1.025f : 0.965f;
+            targetScale = exposed ? ExposedRestingScale : ClosedRestingScale;
+            currentScale = targetScale;
+            ApplyPresentationScale(currentScale);
             RefreshCollider();
         }
 
@@ -170,12 +197,90 @@ namespace MarbleSort.Gameplay.TopGrid
 
         public Vector3 GetReleaseWorldPosition(int index)
         {
-            return transform.TransformPoint(MarbleReleasePattern.GetLocalPosition(index));
+            if (index < 0 || index >= marbleMarkers.Length || marbleMarkers[index] == null)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+
+            return marbleMarkers[index].position;
         }
 
         public void ConsumeMarker(int index)
         {
             marbleMarkers[index].gameObject.SetActive(false);
+            CurrentBakedRemainingCount = VisibleMarkerCount;
+            if (bakedTrayRenderer != null && bakedOccupancyFrames != null &&
+                bakedOccupancyFrames.Length > 0)
+            {
+                int frameIndex = Mathf.Clamp(
+                    CurrentBakedRemainingCount,
+                    0,
+                    bakedOccupancyFrames.Length - 1);
+                bakedTrayRenderer.sprite = bakedOccupancyFrames[frameIndex];
+            }
+        }
+
+        public IEnumerator AnimateDisappearance(float duration)
+        {
+            interactionEnabled = false;
+            disappearing = true;
+            RefreshCollider();
+
+            SpriteRenderer[] sprites = GetComponentsInChildren<SpriteRenderer>(true);
+            Color[] startColors = new Color[sprites.Length];
+            for (int index = 0; index < sprites.Length; index++)
+            {
+                startColors[index] = sprites[index].color;
+            }
+
+            Vector3 startPosition = transform.localPosition;
+            Quaternion startRotation = transform.localRotation;
+            Vector3 startScale = transform.localScale;
+            if (duration <= Mathf.Epsilon)
+            {
+                gameObject.SetActive(false);
+                yield break;
+            }
+
+            float elapsed = 0f;
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                float normalized = Mathf.Clamp01(elapsed / duration);
+                float eased = normalized * normalized * (3f - (2f * normalized));
+
+                float scaleMultiplier;
+                if (normalized < 0.28f)
+                {
+                    float popProgress = normalized / 0.28f;
+                    scaleMultiplier = Mathf.LerpUnclamped(1f, 1.075f, popProgress);
+                }
+                else
+                {
+                    float shrinkProgress = (normalized - 0.28f) / 0.72f;
+                    scaleMultiplier = Mathf.LerpUnclamped(
+                        1.075f,
+                        0.58f,
+                        shrinkProgress * shrinkProgress);
+                }
+
+                transform.localScale = startScale * scaleMultiplier;
+                transform.localPosition = startPosition + new Vector3(0f, 0.12f * eased, 0f);
+                transform.localRotation = startRotation *
+                                          Quaternion.Euler(0f, 0f, -4f * eased);
+
+                float alpha = 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.3f, 1f, normalized));
+                for (int index = 0; index < sprites.Length; index++)
+                {
+                    Color color = startColors[index];
+                    color.a *= alpha;
+                    sprites[index].color = color;
+                }
+
+                yield return null;
+            }
+
+            gameObject.SetActive(false);
         }
 
         private static GameObject CreateSpriteVisual(
@@ -203,6 +308,27 @@ namespace MarbleSort.Gameplay.TopGrid
             return visual;
         }
 
+        private static GameObject CreateLightCastShadow(
+            string objectName,
+            Transform parent,
+            Sprite sprite,
+            Vector3 localPosition,
+            float targetSize,
+            int sortingOrder)
+        {
+            Vector2 offset = PresentationMaterialLibrary.LightCastShadowOffset;
+            GameObject shadow = CreateSpriteVisual(
+                objectName,
+                parent,
+                sprite,
+                localPosition + new Vector3(offset.x, offset.y, 0f),
+                targetSize,
+                sortingOrder);
+            shadow.GetComponent<SpriteRenderer>().color =
+                PresentationMaterialLibrary.LightCastShadowColor;
+            return shadow;
+        }
+
         private void RefreshCollider()
         {
             if (inputCollider != null)
@@ -213,20 +339,35 @@ namespace MarbleSort.Gameplay.TopGrid
 
         private void Update()
         {
+            if (disappearing)
+            {
+                return;
+            }
+
             float speed = targetScale > currentScale ? 12f : 8f;
             currentScale = Mathf.MoveTowards(
                 currentScale,
                 targetScale,
                 speed * Time.deltaTime);
 
-            float pulse = exposed && interactionEnabled
-                ? (Mathf.Sin((Time.unscaledTime * 3.2f) + pulsePhase) + 1f) * 0.009f
-                : 0f;
-            transform.localScale = Vector3.one * (currentScale + pulse);
+            float presentationScale = currentScale;
+            ApplyPresentationScale(presentationScale);
 
             if (!interactionEnabled && targetScale > 1.05f && currentScale >= targetScale - 0.001f)
             {
                 targetScale = 1f;
+            }
+        }
+
+        private void ApplyPresentationScale(float presentationScale)
+        {
+            transform.localScale = Vector3.one * presentationScale;
+            if (markerRoot != null)
+            {
+                // Tray presentation scale never changes the resting ball size. This keeps
+                // the balls matched to the receiver cups while giving adjacent trays a gap.
+                markerRoot.transform.localScale =
+                    Vector3.one / Mathf.Max(0.01f, presentationScale);
             }
         }
     }

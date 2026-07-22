@@ -126,29 +126,10 @@ namespace MarbleSort.Gameplay.TopGrid
             removed.IsRemoved = true;
             ActiveCount--;
 
-            List<TopBoxState> collapsing = new List<TopBoxState>();
-            for (int index = 0; index < boxes.Count; index++)
-            {
-                TopBoxState candidate = boxes[index];
-                if (!candidate.IsRemoved &&
-                    candidate.Column == removed.Column &&
-                    candidate.CurrentRow > removed.CurrentRow)
-                {
-                    collapsing.Add(candidate);
-                }
-            }
-
-            collapsing.Sort(CompareByRowThenId);
-            TopBoxMove[] moves = new TopBoxMove[collapsing.Count];
-            for (int index = 0; index < collapsing.Count; index++)
-            {
-                TopBoxState box = collapsing[index];
-                int fromRow = box.CurrentRow;
-                box.CurrentRow--;
-                moves[index] = new TopBoxMove(box.Id, fromRow, box.CurrentRow);
-            }
-
-            result = new TopBoxRemovalResult(removed, moves);
+            // The level is a fixed spatial puzzle. Clearing a tray can reveal
+            // neighbours, but it must never compact a column or change a tray's
+            // authored grid coordinate.
+            result = new TopBoxRemovalResult(removed, Array.Empty<TopBoxMove>());
             return true;
         }
 
@@ -159,26 +140,32 @@ namespace MarbleSort.Gameplay.TopGrid
                 return false;
             }
 
+            if (box.InitialRow == 0)
+            {
+                return true;
+            }
+
             for (int index = 0; index < boxes.Count; index++)
             {
-                TopBoxState candidate = boxes[index];
-                if (!candidate.IsRemoved &&
-                    candidate.Column == box.Column &&
-                    candidate.CurrentRow < box.CurrentRow)
+                TopBoxState cleared = boxes[index];
+                if (!cleared.IsRemoved)
                 {
-                    return false;
+                    continue;
+                }
+
+                bool directlyInFront =
+                    cleared.Column == box.Column &&
+                    cleared.InitialRow == box.InitialRow - 1;
+                bool directlyBeside =
+                    cleared.InitialRow == box.InitialRow &&
+                    Math.Abs(cleared.Column - box.Column) == 1;
+                if (directlyInFront || directlyBeside)
+                {
+                    return true;
                 }
             }
 
-            return true;
-        }
-
-        private static int CompareByRowThenId(TopBoxState left, TopBoxState right)
-        {
-            int rowComparison = left.CurrentRow.CompareTo(right.CurrentRow);
-            return rowComparison != 0
-                ? rowComparison
-                : string.Compare(left.Id, right.Id, StringComparison.OrdinalIgnoreCase);
+            return false;
         }
     }
 }

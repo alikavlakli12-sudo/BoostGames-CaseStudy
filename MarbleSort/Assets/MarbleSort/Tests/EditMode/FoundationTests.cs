@@ -222,18 +222,19 @@ namespace MarbleSort.Tests.EditMode
         }
 
         [Test]
-        public void TopGrid_OnlyTheLowestBoxInEachColumnIsExposed()
+        public void TopGrid_OnlyFrontRowBoxesAreInitiallyExposed()
         {
             TopGridState grid = new TopGridState(CreateStackedTopGrid());
 
             Assert.That(grid.IsExposed("lower_green"), Is.True);
             Assert.That(grid.IsExposed("upper_blue"), Is.False);
             Assert.That(grid.IsExposed("single_yellow"), Is.True);
-            Assert.That(grid.ActiveCount, Is.EqualTo(3));
+            Assert.That(grid.IsExposed("side_orange"), Is.False);
+            Assert.That(grid.ActiveCount, Is.EqualTo(4));
         }
 
         [Test]
-        public void TopGrid_RemovingAnExposedBoxCollapsesAndExposesTheNextBox()
+        public void TopGrid_ClearedFrontOrSideNeighbourRevealsWithoutMoving()
         {
             TopGridState grid = new TopGridState(CreateStackedTopGrid());
 
@@ -243,12 +244,22 @@ namespace MarbleSort.Tests.EditMode
             Assert.That(coveredRemoval, Is.False);
             Assert.That(coveredResult, Is.Null);
             Assert.That(exposedRemoval, Is.True);
-            Assert.That(result.Moves.Count, Is.EqualTo(1));
-            Assert.That(result.Moves[0].BoxId, Is.EqualTo("upper_blue"));
-            Assert.That(result.Moves[0].FromRow, Is.EqualTo(1));
-            Assert.That(result.Moves[0].ToRow, Is.EqualTo(0));
-            Assert.That(grid.GetBox("upper_blue").CurrentRow, Is.EqualTo(0));
+            Assert.That(result.Moves, Is.Empty);
+            Assert.That(grid.GetBox("upper_blue").CurrentRow, Is.EqualTo(1));
+            Assert.That(grid.GetBox("upper_blue").InitialRow, Is.EqualTo(1));
             Assert.That(grid.IsExposed("upper_blue"), Is.True);
+            Assert.That(
+                grid.IsExposed("side_orange"),
+                Is.False,
+                "A diagonal removal must not reveal a hidden tray.");
+
+            Assert.That(grid.TryRemoveExposed("upper_blue", out TopBoxRemovalResult sideResult), Is.True);
+            Assert.That(sideResult.Moves, Is.Empty);
+            Assert.That(
+                grid.IsExposed("side_orange"),
+                Is.True,
+                "Clearing a tray directly beside a hidden tray must reveal it.");
+            Assert.That(grid.GetBox("side_orange").CurrentRow, Is.EqualTo(1));
             Assert.That(grid.ActiveCount, Is.EqualTo(2));
         }
 
@@ -413,6 +424,13 @@ namespace MarbleSort.Tests.EditMode
                         color = "yellow",
                         column = 1,
                         row = 0
+                    },
+                    new TopBoxData
+                    {
+                        id = "side_orange",
+                        color = "orange",
+                        column = 1,
+                        row = 1
                     }
                 }
             };

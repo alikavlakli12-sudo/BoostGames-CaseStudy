@@ -43,10 +43,10 @@ and rejected by the runtime rather than producing a partially playable level.
 
 ## Production difficulty curve
 
-| Level | Top boxes | Receiver boxes | Maximum stack depth | Purpose |
-| --- | ---: | ---: | ---: | --- |
-| 1 | 2 | 6 | 1 | Teach color matching and queue completion |
-| 2 | 3 | 9 | 1 | Add a third color and ordering pressure |
-| 3 | 4 | 12 | 1 | Introduce all four colors |
-| 4 | 6 | 18 | 2 | Introduce covered boxes and exposure planning |
-| 5 | 8 | 24 | 3 | Combine all colors with deeper dependent stacks |
+| Level | Colors | Visible trays | Hidden trays | Total trays | Receiver boxes | Maximum depth | Purpose |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 1 | 2 | 4 | 2 | 6 | 18 | 2 | Teach matching while introducing a short reveal chain |
+| 2 | 3 | 2 | 4 | 6 | 18 | Increase ordering pressure with fewer initial choices |
+| 3 | 4 | 3 | 6 | 9 | 27 | Combine all colors with two dependent hidden rows |
+| 4 | 4 | 4 | 8 | 12 | 36 | Full four-column, three-row exposure planning |
+| 5 | 4 | 4 | 4 | 8 | 24 | Existing configuration retained for later redesign |

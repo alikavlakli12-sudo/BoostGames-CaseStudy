@@ -5,6 +5,15 @@ namespace MarbleSort.Presentation
 {
     public static class PresentationMaterialLibrary
     {
+        // One restrained cast-shadow treatment shared by the premium sheet and
+        // both top-tray states. Keeping these values in one place prevents the
+        // presentation layers from drifting into different light directions.
+        public static readonly Vector2 LightCastShadowOffset =
+            new Vector2(-0.055f, -0.065f);
+
+        public static readonly Color LightCastShadowColor =
+            new Color32(48, 62, 96, 36);
+
         private static readonly Dictionary<int, Material> DarkenedMaterials =
             new Dictionary<int, Material>();
 

@@ -26,10 +26,10 @@ namespace MarbleSort.Tests.PlayMode
             Assert.That(receivers, Is.Not.Null);
             Assert.That(receivers.State, Is.Not.Null);
             Assert.That(receivers.State.Lanes.Count, Is.EqualTo(4));
-            Assert.That(receivers.State.TotalBoxCount, Is.EqualTo(6));
-            Assert.That(receivers.GeneratedBoxCount, Is.EqualTo(6));
+            Assert.That(receivers.State.TotalBoxCount, Is.EqualTo(18));
+            Assert.That(receivers.GeneratedBoxCount, Is.EqualTo(18));
             Assert.That(receivers.State.Lanes[0].ActiveBox.ColorId, Is.EqualTo("yellow"));
-            Assert.That(receivers.State.Lanes[1].ActiveBox.ColorId, Is.EqualTo("blue"));
+            Assert.That(receivers.State.Lanes[1].ActiveBox.ColorId, Is.EqualTo("yellow"));
             Assert.That(receivers.State.Lanes[2].ActiveBox.ColorId, Is.EqualTo("yellow"));
             Assert.That(receivers.State.Lanes[3].ActiveBox.ColorId, Is.EqualTo("blue"));
         }
@@ -43,11 +43,11 @@ namespace MarbleSort.Tests.PlayMode
             ReceiverQueueController receivers = Object.FindFirstObjectByType<ReceiverQueueController>();
 
             Assert.That(receivers, Is.Not.Null);
-            Assert.That(receivers.GeneratedLidCount, Is.EqualTo(6));
+            Assert.That(receivers.GeneratedLidCount, Is.EqualTo(18));
             yield return WaitForReceiverLids(receivers);
 
             Assert.That(receivers.OpenLidCount, Is.EqualTo(4));
-            Assert.That(receivers.ClosedLidCount, Is.EqualTo(2));
+            Assert.That(receivers.ClosedLidCount, Is.EqualTo(14));
             for (int laneIndex = 0; laneIndex < receivers.State.Lanes.Count; laneIndex++)
             {
                 Assert.That(receivers.IsLaneReadyForCollection(laneIndex), Is.True);
@@ -111,12 +111,12 @@ namespace MarbleSort.Tests.PlayMode
 
             Assert.That(receivers.State.CompletedBoxCount, Is.EqualTo(1));
             Assert.That(hud.CompletedTrayCount, Is.EqualTo(1));
-            Assert.That(hud.TotalTrayCount, Is.EqualTo(6));
+            Assert.That(hud.TotalTrayCount, Is.EqualTo(18));
             Assert.That(receivers.State.Lanes[0].ActiveBox.ColorId, Is.EqualTo("blue"));
             Assert.That(receivers.State.Lanes[0].ActiveBox.FillCount, Is.Zero);
-            Assert.That(receivers.GeneratedLidCount, Is.EqualTo(5));
+            Assert.That(receivers.GeneratedLidCount, Is.EqualTo(17));
             Assert.That(receivers.OpenLidCount, Is.EqualTo(4));
-            Assert.That(receivers.ClosedLidCount, Is.EqualTo(1));
+            Assert.That(receivers.ClosedLidCount, Is.EqualTo(13));
             Assert.That(receivers.IsLaneReadyForCollection(0), Is.True);
             Assert.That(conveyor.State.OccupiedCount, Is.Zero);
             Assert.That(conveyor.State.EmptyCount, Is.EqualTo(24));
@@ -285,7 +285,7 @@ namespace MarbleSort.Tests.PlayMode
             Assert.That(topGrid.enabled, Is.True);
             Assert.That(admission.enabled, Is.True);
             Assert.That(receivers.CollectionEnabled, Is.True);
-            Assert.That(receivers.State.TotalBoxCount, Is.EqualTo(6));
+            Assert.That(receivers.State.TotalBoxCount, Is.EqualTo(18));
         }
 
         [UnityTest]
@@ -318,8 +318,8 @@ namespace MarbleSort.Tests.PlayMode
 
             Assert.That(flow.Status, Is.EqualTo(LevelFlowStatus.Playing));
             Assert.That(bootstrap.Session.CurrentLevelIndex, Is.EqualTo(1));
-            Assert.That(topGrid.GeneratedBoxCount, Is.EqualTo(3));
-            Assert.That(receivers.State.TotalBoxCount, Is.EqualTo(9));
+            Assert.That(topGrid.GeneratedBoxCount, Is.EqualTo(6));
+            Assert.That(receivers.State.TotalBoxCount, Is.EqualTo(18));
             Assert.That(receivers.State.CompletedBoxCount, Is.Zero);
         }
 
@@ -392,8 +392,8 @@ namespace MarbleSort.Tests.PlayMode
 
             Assert.That(bootstrap.Session.CurrentLevelIndex, Is.Zero);
             Assert.That(flow.Status, Is.EqualTo(LevelFlowStatus.Playing));
-            Assert.That(topGrid.GeneratedBoxCount, Is.EqualTo(2));
-            Assert.That(receivers.State.TotalBoxCount, Is.EqualTo(6));
+            Assert.That(topGrid.GeneratedBoxCount, Is.EqualTo(6));
+            Assert.That(receivers.State.TotalBoxCount, Is.EqualTo(18));
         }
 
         [UnityTest]
@@ -421,8 +421,16 @@ namespace MarbleSort.Tests.PlayMode
                 yield return WaitForTopGridRelease(topGrid);
                 Assert.That(topGrid.TrySelectBox("l01_top_blue_01"), Is.True);
                 yield return WaitForTopGridRelease(topGrid);
+                Assert.That(topGrid.TrySelectBox("l01_top_blue_02"), Is.True);
+                yield return WaitForTopGridRelease(topGrid);
+                Assert.That(topGrid.TrySelectBox("l01_top_yellow_02"), Is.True);
+                yield return WaitForTopGridRelease(topGrid);
+                Assert.That(topGrid.TrySelectBox("l01_top_yellow_03"), Is.True);
+                yield return WaitForTopGridRelease(topGrid);
+                Assert.That(topGrid.TrySelectBox("l01_top_blue_03"), Is.True);
+                yield return WaitForTopGridRelease(topGrid);
 
-                float timeout = Time.realtimeSinceStartup + 12f;
+                float timeout = Time.realtimeSinceStartup + 30f;
                 while (bootstrap.Session.CurrentLevelIndex == 0 &&
                        flow.Status != LevelFlowStatus.Deadlocked &&
                        Time.realtimeSinceStartup < timeout)

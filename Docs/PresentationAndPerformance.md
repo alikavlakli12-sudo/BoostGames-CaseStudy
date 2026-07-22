@@ -72,12 +72,12 @@ shared materials and do not request real-time shadows.
 ## QA checklist
 
 1. Play Level 1 and confirm the retry control and level title remain below the device safe area.
-2. Select both Level 1 boxes and confirm selection, admission, collection, receiver completion,
+2. Clear all six Level 1 trays and confirm hidden-tray reveals, selection, admission, collection, receiver completion,
    level completion, and automatic progression feedback.
-3. Preview Level 5 through **Marble Sort > Level Catalog** and verify three-deep stacks, all four
-   receiver lanes, and the full lower receiver bay remain inside the portrait frame.
+3. Preview Level 4 through **Marble Sort > Level Catalog** and verify three-deep stacks, all four
+   nine-box receiver lanes, and the full lower receiver bay remain inside the portrait frame.
 4. Trigger a full incompatible conveyor and confirm the deadlock overlay and retry reset.
 5. Run all EditMode and PlayMode tests after any presentation or scene-bootstrapper change.
 
 The PlayMode layout guard also loads every production level and verifies that all top-box and
-receiver renderers remain inside the portrait camera, including Level 5's six-deep receiver lanes.
+receiver renderers remain inside the portrait camera, including Level 4's nine-deep receiver lanes.

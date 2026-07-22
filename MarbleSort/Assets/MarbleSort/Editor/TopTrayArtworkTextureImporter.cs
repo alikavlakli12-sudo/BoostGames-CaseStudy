@@ -37,11 +37,15 @@ namespace MarbleSort.Editor
             importer.alphaSource = TextureImporterAlphaSource.FromInput;
             importer.alphaIsTransparency = true;
             importer.sRGBTexture = true;
-            importer.mipmapEnabled = false;
+            bool isExposedTray = !assetPath.Contains(
+                "/Hidden/",
+                System.StringComparison.Ordinal);
+            importer.mipmapEnabled = isExposedTray;
+            importer.mipMapsPreserveCoverage = isExposedTray;
             importer.isReadable = false;
             importer.npotScale = TextureImporterNPOTScale.None;
             importer.wrapMode = TextureWrapMode.Clamp;
-            importer.filterMode = FilterMode.Bilinear;
+            importer.filterMode = isExposedTray ? FilterMode.Trilinear : FilterMode.Bilinear;
             importer.textureCompression = TextureImporterCompression.Uncompressed;
             importer.maxTextureSize = 1024;
         }

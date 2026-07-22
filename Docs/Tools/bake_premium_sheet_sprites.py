@@ -156,7 +156,21 @@ def recess_path(
     current_top = ((column_height(run_start, occupied) - 0.5) * spacing) + RECESS_CLEARANCE
     path.append((left, current_top))
     for column in range(run_start, run_end + 1):
-        right = ((column - grid_center) * spacing) + half_cell
+        current_center = (column - grid_center) * spacing
+        right = current_center + half_cell
+        next_top = current_top
+        if column < run_end:
+            next_top = (
+                (column_height(column + 1, occupied) - 0.5) * spacing
+            ) + RECESS_CLEARANCE
+
+            # On an upward step, turn at the taller column's expanded left
+            # edge. The shorter column's right edge falls inside the higher
+            # tray and was the source of the visible sheet contact.
+            if next_top > current_top:
+                next_center = ((column + 1) - grid_center) * spacing
+                right = next_center - half_cell
+
         path.append((right, current_top))
         if column >= run_end:
             path.append((right, WORLD_BOTTOM + radius))
@@ -169,7 +183,6 @@ def recess_path(
                 segments=18,
             )
             continue
-        next_top = ((column_height(column + 1, occupied) - 0.5) * spacing) + RECESS_CLEARANCE
         if not math.isclose(next_top, current_top, abs_tol=1e-6):
             path.append((right, next_top))
             current_top = next_top

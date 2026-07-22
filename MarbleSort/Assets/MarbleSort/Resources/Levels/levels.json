@@ -83,9 +83,9 @@
           { "id": "l02_top_green_01", "color": "green", "column": 1, "row": 0 },
           { "id": "l02_top_blue_01", "color": "blue", "column": 2, "row": 0 },
           { "id": "l02_top_orange_01", "color": "orange", "column": 1, "row": 1 },
-          { "id": "l02_top_blue_02", "color": "blue", "column": 0, "row": 1 },
-          { "id": "l02_top_orange_02", "color": "orange", "column": 2, "row": 1 },
-          { "id": "l02_top_green_02", "color": "green", "column": 3, "row": 1 }
+          { "id": "l02_top_blue_02", "color": "blue", "column": 2, "row": 1 },
+          { "id": "l02_top_orange_02", "color": "orange", "column": 1, "row": 2 },
+          { "id": "l02_top_green_02", "color": "green", "column": 2, "row": 2 }
         ]
       },
       "receiverLanes": [
@@ -150,10 +150,10 @@
           { "id": "l03_top_green_01", "color": "green", "column": 2, "row": 0 },
           { "id": "l03_top_yellow_01", "color": "yellow", "column": 0, "row": 1 },
           { "id": "l03_top_blue_02", "color": "blue", "column": 1, "row": 1 },
-          { "id": "l03_top_orange_02", "color": "orange", "column": 2, "row": 1 },
-          { "id": "l03_top_green_02", "color": "green", "column": 3, "row": 1 },
-          { "id": "l03_top_yellow_02", "color": "yellow", "column": 1, "row": 2 },
-          { "id": "l03_top_blue_03", "color": "blue", "column": 2, "row": 2 }
+          { "id": "l03_top_orange_02", "color": "orange", "column": 0, "row": 2 },
+          { "id": "l03_top_green_02", "color": "green", "column": 1, "row": 2 },
+          { "id": "l03_top_yellow_02", "color": "yellow", "column": 0, "row": 3 },
+          { "id": "l03_top_blue_03", "color": "blue", "column": 1, "row": 3 }
         ]
       },
       "receiverLanes": [

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using MarbleSort.Data;
+using MarbleSort.Presentation;
 using MarbleSort.Session;
 using MarbleSort.Validation;
 using NUnit.Framework;
@@ -20,7 +21,7 @@ namespace MarbleSort.Tests.EditMode
             int[] expectedTopBoxCounts = { 6, 6, 9, 12, 8 };
             int[] expectedVisibleBoxCounts = { 4, 2, 3, 4, 4 };
             int[] expectedColorCounts = { 2, 3, 4, 4, 4 };
-            int[] expectedMaximumDepths = { 2, 2, 3, 3, 3 };
+            int[] expectedMaximumDepths = { 2, 3, 4, 3, 3 };
 
             Assert.That(catalog.levels.Length, Is.EqualTo(expectedTopBoxCounts.Length));
             for (int levelIndex = 0; levelIndex < catalog.levels.Length; levelIndex++)
@@ -61,6 +62,71 @@ namespace MarbleSort.Tests.EditMode
                 Assert.That(result.SelectionSequence.Count, Is.EqualTo(level.topGrid.boxes.Length));
                 Assert.That(result.PeakConveyorOccupancy, Is.InRange(1, catalog.conveyor.slotCount));
                 Assert.That(result.ExploredStateCount, Is.GreaterThan(0));
+            }
+        }
+
+        [Test]
+        public void ProductionLevels_EveryOccupiedColumnHasAFirstRowTray()
+        {
+            LevelCatalogData catalog = LoadProductionCatalog();
+
+            for (int levelIndex = 0; levelIndex < catalog.levels.Length; levelIndex++)
+            {
+                LevelData level = catalog.levels[levelIndex];
+                HashSet<int> occupiedColumns = new HashSet<int>();
+                HashSet<int> firstRowColumns = new HashSet<int>();
+                for (int boxIndex = 0; boxIndex < level.topGrid.boxes.Length; boxIndex++)
+                {
+                    TopBoxData box = level.topGrid.boxes[boxIndex];
+                    occupiedColumns.Add(box.column);
+                    if (box.row == 0)
+                    {
+                        firstRowColumns.Add(box.column);
+                    }
+                }
+
+                Assert.That(
+                    firstRowColumns.SetEquals(occupiedColumns),
+                    Is.True,
+                    $"{level.displayName} leaves an empty first-row position below a hidden tray.");
+            }
+        }
+
+        [Test]
+        public void LevelsTwoAndThree_UseTheApprovedCompactFormations()
+        {
+            LevelCatalogData catalog = LoadProductionCatalog();
+
+            AssertFormation(
+                catalog.levels[1],
+                "1x0", "2x0", "1x1", "2x1", "1x2", "2x2");
+            AssertFormation(
+                catalog.levels[2],
+                "0x0", "1x0", "2x0",
+                "0x1", "1x1",
+                "0x2", "1x2",
+                "0x3", "1x3");
+        }
+
+        [Test]
+        public void EveryProductionLevel_LoadsItsExactBakedFormationSheet()
+        {
+            LevelCatalogData catalog = LoadProductionCatalog();
+
+            for (int levelIndex = 0; levelIndex < catalog.levels.Length; levelIndex++)
+            {
+                LevelData level = catalog.levels[levelIndex];
+                Assert.That(
+                    PremiumSheetArtworkLibrary.TryGet(level.topGrid, out Sprite artwork),
+                    Is.True,
+                    $"Missing baked formation sheet for {level.displayName}.");
+                Assert.That(artwork, Is.Not.Null);
+                Assert.That(
+                    artwork.texture.width,
+                    Is.EqualTo(PremiumSheetArtworkLibrary.TextureWidth));
+                Assert.That(
+                    artwork.texture.height,
+                    Is.EqualTo(PremiumSheetArtworkLibrary.TextureHeight));
             }
         }
 
@@ -140,6 +206,21 @@ namespace MarbleSort.Tests.EditMode
             }
 
             return maximumDepth;
+        }
+
+        private static void AssertFormation(LevelData level, params string[] expectedCells)
+        {
+            HashSet<string> actualCells = new HashSet<string>(StringComparer.Ordinal);
+            for (int index = 0; index < level.topGrid.boxes.Length; index++)
+            {
+                TopBoxData box = level.topGrid.boxes[index];
+                actualCells.Add($"{box.column}x{box.row}");
+            }
+
+            Assert.That(
+                actualCells.SetEquals(expectedCells),
+                Is.True,
+                $"{level.displayName} does not match its approved compact formation.");
         }
 
         private static int GetVisibleBoxCount(TopBoxData[] boxes)

@@ -45,6 +45,7 @@ namespace MarbleSort.Data
         public string color = string.Empty;
         public int column;
         public int row;
+        public bool mystery;
     }
 
     [Serializable]

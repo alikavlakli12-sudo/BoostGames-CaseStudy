@@ -7,7 +7,7 @@ namespace MarbleSort.Validation
     public static class LevelCatalogValidator
     {
         private static readonly HashSet<string> SupportedColors = new HashSet<string>(
-            new[] { "green", "blue", "orange", "yellow" },
+            new[] { "green", "blue", "orange", "yellow", "pink" },
             StringComparer.OrdinalIgnoreCase);
 
         public static ValidationReport Validate(LevelCatalogData catalog)
@@ -183,6 +183,15 @@ namespace MarbleSort.Validation
                         $"Cell ({box.column}, {box.row}) is outside a {grid.columns}x{grid.rows} grid.");
                 }
 
+                if (box.mystery && box.row == 0)
+                {
+                    report.Add(
+                        ValidationSeverity.Error,
+                        "MYSTERY_TRAY_EXPOSED_AT_START",
+                        boxContext,
+                        "A mystery tray must begin behind the first row so its contents can be revealed.");
+                }
+
                 string cellKey = $"{box.column}:{box.row}";
                 if (!occupiedCells.Add(cellKey))
                 {
@@ -328,7 +337,7 @@ namespace MarbleSort.Validation
                     ValidationSeverity.Error,
                     "COLOR_UNSUPPORTED",
                     context,
-                    $"Color '{color}' is not supported. Use green, blue, orange, or yellow.");
+                    $"Color '{color}' is not supported. Use green, blue, orange, yellow, or pink.");
             }
 
             return normalized;

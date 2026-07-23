@@ -14,7 +14,7 @@ Status: complete and verified as the first project milestone.
 ## Day 2 — Top grid and physical marbles
 
 - Build the runtime grid from JSON.
-- Implement exposed-box input rules, column collapse, and nine-marble release.
+- Implement fixed-grid exposed-box rules, orthogonal neighbour reveals, and nine-marble release without tray compaction.
 - Add marble pooling, constrained rigidbodies, collision configuration, and basin containment.
 - Gate: repeated selections allocate no new marble objects after pool warm-up and never allow a covered box to be selected.
 
@@ -45,7 +45,7 @@ Status: complete and verified on `receivers-level-flow` with EditMode, PlayMode,
 - Gate: all production JSON passes validation and every level can be completed from a clean launch.
 
 Status: complete and verified on `production-levels-editor` with deterministic solvability
-analysis, a 2/3/4/6/8-box difficulty curve, safe JSON authoring, direct selected-level preview,
+analysis, a 6/6/9/12/8-box difficulty curve, explicit visible/hidden tray counts, safe JSON authoring, direct selected-level preview,
 27 EditMode tests, and 12 PlayMode tests covering all five clean runtime builds.
 
 ## Day 6 — Presentation and performance
@@ -67,7 +67,7 @@ platform-guarded haptics, runtime performance diagnostics, 31 EditMode tests, an
 - Review commit history and repository contents for secrets, caches, oversized files, and accidental artifacts.
 - Gate: a reviewer can clone, open with the required Unity version, run the scene, run tests, and build without undocumented steps.
 
-Status: complete on `delivery-qa` with a 12-check delivery validator, 35 EditMode tests, 16
+Status: complete on `delivery-qa` with a 12-check delivery validator, 37 EditMode tests, 18
 PlayMode tests, a successful universal macOS smoke build and boot, explicit reviewer instructions,
 known limitations, and clean-clone verification.
 

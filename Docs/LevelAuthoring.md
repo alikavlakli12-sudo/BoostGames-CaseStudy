@@ -33,7 +33,7 @@ reviewing a newly authored queue.
 - Object IDs are unique within a level.
 - Receiver lanes have distinct horizontal positions and positive vertical spacing.
 - Top boxes occupy unique, in-bounds grid cells.
-- Supported colors are `green`, `blue`, `orange`, and `yellow`.
+- Supported colors are `green`, `blue`, `orange`, `yellow`, and `pink`.
 - For every color, receiver-box count equals top-box count multiplied by three.
 - At least one exposed-box selection order must complete the level without overflowing the
   24-slot conveyor.
@@ -43,10 +43,16 @@ and rejected by the runtime rather than producing a partially playable level.
 
 ## Production difficulty curve
 
-| Level | Top boxes | Receiver boxes | Maximum stack depth | Purpose |
-| --- | ---: | ---: | ---: | --- |
-| 1 | 2 | 6 | 1 | Teach color matching and queue completion |
-| 2 | 3 | 9 | 1 | Add a third color and ordering pressure |
-| 3 | 4 | 12 | 1 | Introduce all four colors |
-| 4 | 6 | 18 | 2 | Introduce covered boxes and exposure planning |
-| 5 | 8 | 24 | 3 | Combine all colors with deeper dependent stacks |
+| Level | Colors | Visible trays | Hidden trays | Total trays | Receiver boxes | Maximum depth | Purpose |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 1 | 2 | 4 | 2 | 6 | 18 | 2 | Teach matching while introducing a short reveal chain |
+| 2 | 3 | 2 | 4 | 6 | 18 | 3 | Increase ordering pressure with fewer initial choices |
+| 3 | 4 | 3 | 6 | 9 | 27 | 4 | Combine all colors with two dependent hidden rows |
+| 4 | 4 | 4 | 8 | 12 | 36 | 3 | Full four-column, three-row exposure planning |
+| 5 | 5 | 4 | 6 | 10 | 30 | 3 | Mix five colors, interleaved receiver queues, and a third-row Pink mystery |
+
+Level 5 deliberately avoids adjacent receiver boxes of the same color in every lane. Its first
+four receivers remain blue, green, orange, and yellow for a readable opening, while deeper colors
+are interleaved to require forward planning. Pink remains gated behind its third-row mystery tray.
+Any future queue edit must preserve the per-color 1:3 ratio and pass the deterministic solvability
+analysis against the 24-slot conveyor.

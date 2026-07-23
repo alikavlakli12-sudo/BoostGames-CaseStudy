@@ -38,10 +38,23 @@ namespace MarbleSort.Presentation
         public int GenerationZeroCollections =>
             Math.Max(0, GC.CollectionCount(0) - initialGenerationZeroCollections);
 
+        public void ResetMeasurements()
+        {
+            if (frameTimes.Length > 0)
+            {
+                Array.Clear(frameTimes, 0, frameTimes.Length);
+            }
+
+            writeIndex = 0;
+            sampleCount = 0;
+            frameTimeSum = 0f;
+            initialGenerationZeroCollections = GC.CollectionCount(0);
+        }
+
         private void Awake()
         {
             frameTimes = new float[Mathf.Clamp(sampleWindow, 30, 300)];
-            initialGenerationZeroCollections = GC.CollectionCount(0);
+            ResetMeasurements();
         }
 
         private void Update()

@@ -136,6 +136,37 @@ namespace MarbleSort.Tests.EditMode
         }
 
         [Test]
+        public void StadiumPath_LeftTurn_RotatesContinuouslyThroughDiagonalAndHorizontalPoses()
+        {
+            const float straightLength = 5f;
+            const float turnRadius = 0.55f;
+            float perimeter = StadiumPath.GetPerimeter(straightLength, turnRadius);
+            float arcStart = straightLength / perimeter;
+            float quarterArc = (Mathf.PI * turnRadius * 0.25f) / perimeter;
+
+            StadiumPose top = StadiumPath.Evaluate(arcStart, straightLength, turnRadius);
+            StadiumPose upperDiagonal = StadiumPath.Evaluate(
+                arcStart + quarterArc,
+                straightLength,
+                turnRadius);
+            StadiumPose side = StadiumPath.Evaluate(
+                arcStart + (quarterArc * 2f),
+                straightLength,
+                turnRadius);
+            StadiumPose lowerDiagonal = StadiumPath.Evaluate(
+                arcStart + (quarterArc * 3f),
+                straightLength,
+                turnRadius);
+
+            Assert.That(Vector3.Angle(top.Tangent, Vector3.left), Is.LessThan(0.01f));
+            Assert.That(upperDiagonal.Tangent.x, Is.LessThan(-0.6f));
+            Assert.That(upperDiagonal.Tangent.y, Is.LessThan(-0.6f));
+            Assert.That(Vector3.Angle(side.Tangent, Vector3.down), Is.LessThan(0.01f));
+            Assert.That(lowerDiagonal.Tangent.x, Is.GreaterThan(0.6f));
+            Assert.That(lowerDiagonal.Tangent.y, Is.LessThan(-0.6f));
+        }
+
+        [Test]
         public void ConveyorState_ReservationPreventsDoubleOccupancy()
         {
             ConveyorState state = new ConveyorState(24);
@@ -191,18 +222,19 @@ namespace MarbleSort.Tests.EditMode
         }
 
         [Test]
-        public void TopGrid_OnlyTheLowestBoxInEachColumnIsExposed()
+        public void TopGrid_OnlyFrontRowBoxesAreInitiallyExposed()
         {
             TopGridState grid = new TopGridState(CreateStackedTopGrid());
 
             Assert.That(grid.IsExposed("lower_green"), Is.True);
             Assert.That(grid.IsExposed("upper_blue"), Is.False);
             Assert.That(grid.IsExposed("single_yellow"), Is.True);
-            Assert.That(grid.ActiveCount, Is.EqualTo(3));
+            Assert.That(grid.IsExposed("side_orange"), Is.False);
+            Assert.That(grid.ActiveCount, Is.EqualTo(4));
         }
 
         [Test]
-        public void TopGrid_RemovingAnExposedBoxCollapsesAndExposesTheNextBox()
+        public void TopGrid_ClearedFrontOrSideNeighbourRevealsWithoutMoving()
         {
             TopGridState grid = new TopGridState(CreateStackedTopGrid());
 
@@ -212,12 +244,22 @@ namespace MarbleSort.Tests.EditMode
             Assert.That(coveredRemoval, Is.False);
             Assert.That(coveredResult, Is.Null);
             Assert.That(exposedRemoval, Is.True);
-            Assert.That(result.Moves.Count, Is.EqualTo(1));
-            Assert.That(result.Moves[0].BoxId, Is.EqualTo("upper_blue"));
-            Assert.That(result.Moves[0].FromRow, Is.EqualTo(1));
-            Assert.That(result.Moves[0].ToRow, Is.EqualTo(0));
-            Assert.That(grid.GetBox("upper_blue").CurrentRow, Is.EqualTo(0));
+            Assert.That(result.Moves, Is.Empty);
+            Assert.That(grid.GetBox("upper_blue").CurrentRow, Is.EqualTo(1));
+            Assert.That(grid.GetBox("upper_blue").InitialRow, Is.EqualTo(1));
             Assert.That(grid.IsExposed("upper_blue"), Is.True);
+            Assert.That(
+                grid.IsExposed("side_orange"),
+                Is.False,
+                "A diagonal removal must not reveal a hidden tray.");
+
+            Assert.That(grid.TryRemoveExposed("upper_blue", out TopBoxRemovalResult sideResult), Is.True);
+            Assert.That(sideResult.Moves, Is.Empty);
+            Assert.That(
+                grid.IsExposed("side_orange"),
+                Is.True,
+                "Clearing a tray directly beside a hidden tray must reveal it.");
+            Assert.That(grid.GetBox("side_orange").CurrentRow, Is.EqualTo(1));
             Assert.That(grid.ActiveCount, Is.EqualTo(2));
         }
 
@@ -233,6 +275,26 @@ namespace MarbleSort.Tests.EditMode
             Assert.That(MarbleReleasePattern.MarbleCount, Is.EqualTo(9));
             Assert.That(TopGridController.MarblesPerBox, Is.EqualTo(9));
             Assert.That(positions.Count, Is.EqualTo(9));
+        }
+
+        [Test]
+        public void MarbleCapacityBudget_CoversBoardConveyorAndEveryReceiverTransfer()
+        {
+            const int maximumConcurrentReceiverTransfers = 4;
+            int requiredActors =
+                TopGridController.LooseBoardMarbleCapacity +
+                ApprovedConveyorPath.SlotCount +
+                maximumConcurrentReceiverTransfers;
+
+            Assert.That(TopGridController.LooseBoardMarbleCapacity, Is.EqualTo(36));
+            Assert.That(requiredActors, Is.EqualTo(64));
+            Assert.That(
+                MarblePool.DefaultInitialCapacity,
+                Is.GreaterThanOrEqualTo(requiredActors));
+            Assert.That(
+                MarblePool.DefaultInitialCapacity - requiredActors,
+                Is.EqualTo(8),
+                "The production pool should retain a small hand-off safety margin.");
         }
 
         [Test]
@@ -382,6 +444,13 @@ namespace MarbleSort.Tests.EditMode
                         color = "yellow",
                         column = 1,
                         row = 0
+                    },
+                    new TopBoxData
+                    {
+                        id = "side_orange",
+                        color = "orange",
+                        column = 1,
+                        row = 1
                     }
                 }
             };

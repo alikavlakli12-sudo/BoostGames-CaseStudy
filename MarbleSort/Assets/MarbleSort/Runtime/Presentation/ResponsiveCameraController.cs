@@ -32,6 +32,7 @@ namespace MarbleSort.Presentation
             minimumHalfWidth = Mathf.Max(0.01f, halfWidth);
             background = backgroundTransform;
             backgroundTextureAspect = Mathf.Max(0.1f, textureAspect);
+            backgroundOverscan = 0f;
             ApplyLayout(true);
         }
 

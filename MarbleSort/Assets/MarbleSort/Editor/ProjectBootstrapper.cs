@@ -19,19 +19,23 @@ namespace MarbleSort.Editor
         private const string ScenePath = "Assets/MarbleSort/Scenes/Main.unity";
         private const string MaterialsPath = "Assets/MarbleSort/Art/Materials";
         private const string BackgroundTexturePath =
-            "Assets/MarbleSort/Art/Textures/PortraitBackground.png";
+            "Assets/MarbleSort/Art/Textures/PortraitEnvironmentReceiverBayLowered.png";
+        private const string HudPlateTexturePath =
+            "Assets/MarbleSort/Resources/Presentation/UI/Approved/PremiumTopHudPlateAqua.png";
+        private const float ConveyorLocalY = -4.015f;
 
         [MenuItem("Marble Sort/Setup/Rebuild Base Scene")]
         public static void CreateBaseProject()
         {
             ConfigureProjectSettings();
+            ConfigurePremiumTexture(HudPlateTexturePath, true);
 
-            Material background = GetOrCreateMaterial("Background", new Color32(105, 127, 190, 255));
-            Material basin = GetOrCreateMaterial("Basin", new Color32(177, 205, 224, 255));
-            Material basinHighlight = GetOrCreateMaterial("BasinHighlight", new Color32(222, 238, 248, 255));
-            Material receiverBay = GetOrCreateMaterial("ReceiverBay", new Color32(181, 208, 228, 255));
-            Material border = GetOrCreateMaterial("Border", new Color32(66, 84, 142, 255));
-            Material shadow = GetOrCreateMaterial("Shadow", new Color32(42, 52, 96, 255));
+            Material background = GetOrCreateMaterial("Background", new Color32(58, 88, 198, 255));
+            Material basin = GetOrCreateMaterial("Basin", new Color32(196, 225, 242, 255));
+            Material basinHighlight = GetOrCreateMaterial("BasinHighlight", new Color32(242, 249, 255, 255));
+            Material receiverBay = GetOrCreateMaterial("ReceiverBay", new Color32(191, 220, 239, 255));
+            Material border = GetOrCreateMaterial("Border", new Color32(67, 88, 160, 255));
+            Material shadow = GetOrCreateMaterial("Shadow", new Color32(39, 50, 103, 255));
             Material conveyor = GetOrCreateMaterial("Conveyor", new Color32(147, 153, 180, 255));
             Material conveyorInner = GetOrCreateMaterial("ConveyorInner", new Color32(220, 225, 239, 255));
             Material conveyorSlot = GetOrCreateMaterial("ConveyorSlot", new Color32(82, 88, 121, 255));
@@ -40,6 +44,7 @@ namespace MarbleSort.Editor
             Material blue = GetOrCreateMaterial("Blue", new Color32(57, 84, 239, 255));
             Material orange = GetOrCreateMaterial("Orange", new Color32(255, 164, 46, 255));
             Material yellow = GetOrCreateMaterial("Yellow", new Color32(255, 225, 61, 255));
+            Material pink = GetOrCreateMaterial("Pink", new Color32(246, 78, 178, 255));
             Material backgroundArt = GetOrCreateBackgroundMaterial();
 
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
@@ -51,15 +56,19 @@ namespace MarbleSort.Editor
             GameObject root = new GameObject("Marble Sort");
             Transform backgroundTransform = CreateBackground(root.transform, backgroundArt).transform;
             ResponsiveCameraController responsiveCamera = camera.gameObject.AddComponent<ResponsiveCameraController>();
-            responsiveCamera.Configure(9.4f, 4.65f, backgroundTransform, 2f / 3f);
+            responsiveCamera.Configure(9.4f, 4.65f, backgroundTransform, 853f / 1844f);
 
             GameObject systems = new GameObject("Systems");
             systems.transform.SetParent(root.transform);
             GameBootstrap bootstrap = systems.AddComponent<GameBootstrap>();
             MarblePalette palette = systems.AddComponent<MarblePalette>();
-            palette.Configure(green, blue, orange, yellow);
+            palette.Configure(green, blue, orange, yellow, pink);
             MarblePool marblePool = systems.AddComponent<MarblePool>();
-            marblePool.Configure(palette, 72, 0.22f, -8.5f);
+            marblePool.Configure(
+                palette,
+                MarblePool.DefaultInitialCapacity,
+                MarblePool.TransitMarbleDiameter,
+                -8.5f);
 
             GameObject board = new GameObject("Board");
             board.transform.SetParent(root.transform);
@@ -67,12 +76,7 @@ namespace MarbleSort.Editor
             TopGridController topGrid = CreateTopGrid(board.transform, bootstrap, marblePool, palette, camera);
             StadiumConveyorController conveyorController = CreateConveyor(
                 board.transform,
-                bootstrap,
-                conveyor,
-                conveyorInner,
-                border,
-                shadow,
-                conveyorSlot);
+                bootstrap);
             ConveyorAdmissionController admission = CreateConveyorEntrance(
                 board.transform,
                 conveyorController,
@@ -95,7 +99,7 @@ namespace MarbleSort.Editor
                 receivers,
                 marblePool,
                 hud,
-                1.2f);
+                1.6f);
 
             GameFeedbackController feedback = systems.AddComponent<GameFeedbackController>();
             feedback.Configure(topGrid, admission, receivers, levelFlow, palette, particle);
@@ -106,6 +110,15 @@ namespace MarbleSort.Editor
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             Debug.Log($"Marble Sort base project created at {ScenePath}.");
+        }
+
+        [MenuItem("Marble Sort/Setup/Apply Lowered Receiver Bay Artwork")]
+        public static void ApplyLoweredReceiverBayArtwork()
+        {
+            GetOrCreateBackgroundMaterial();
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            Debug.Log("Applied the lowered receiver-bay environment artwork.");
         }
 
         private static void ConfigureProjectSettings()
@@ -182,36 +195,37 @@ namespace MarbleSort.Editor
         {
             GameObject basinRoot = new GameObject("Physics Basin");
             basinRoot.transform.SetParent(parent);
+            basinRoot.AddComponent<ChuteBoundaryRig>();
 
             GameObject basinShadow = PresentationMeshFactory.CreateRoundedBox(
                 "Basin Shadow",
                 basinRoot.transform,
-                8.86f,
-                9.12f,
+                8.9f,
+                7.18f,
                 0.12f,
                 0.62f,
                 shadow);
-            basinShadow.transform.localPosition = new Vector3(0.06f, 2.38f, 1.62f);
+            basinShadow.transform.localPosition = new Vector3(0.06f, 1.72f, 1.62f);
 
             GameObject basinRim = PresentationMeshFactory.CreateRoundedBox(
                 "Basin Rim",
                 basinRoot.transform,
-                8.72f,
-                9f,
+                8.74f,
+                7.06f,
                 0.14f,
                 0.6f,
                 border);
-            basinRim.transform.localPosition = new Vector3(0f, 2.48f, 1.5f);
+            basinRim.transform.localPosition = new Vector3(0f, 1.76f, 1.5f);
 
             GameObject basinBack = PresentationMeshFactory.CreateRoundedBox(
                 "Basin Back",
                 basinRoot.transform,
                 8.35f,
-                8.62f,
+                6.68f,
                 0.16f,
                 0.48f,
                 basin);
-            basinBack.transform.localPosition = new Vector3(0f, 2.4f, 1.32f);
+            basinBack.transform.localPosition = new Vector3(0f, 1.79f, 1.32f);
 
             GameObject upperHighlight = PresentationMeshFactory.CreateRoundedBox(
                 "Basin Upper Highlight",
@@ -221,7 +235,7 @@ namespace MarbleSort.Editor
                 0.03f,
                 0.04f,
                 basinHighlight);
-            upperHighlight.transform.localPosition = new Vector3(0f, 6.37f, 1.2f);
+            upperHighlight.transform.localPosition = new Vector3(0f, 5.03f, 1.2f);
 
             GameObject bayShadow = PresentationMeshFactory.CreateRoundedBox(
                 "Receiver Bay Shadow",
@@ -257,8 +271,8 @@ namespace MarbleSort.Editor
                 "Left Wall",
                 PrimitiveType.Cube,
                 basinRoot.transform,
-                new Vector3(-4.05f, 2.5f, 0f),
-                new Vector3(0.25f, 8.5f, 0.6f),
+                new Vector3(-4.05f, 1.7f, 0f),
+                new Vector3(0.25f, 6.75f, 0.6f),
                 Quaternion.identity,
                 border,
                 true);
@@ -267,8 +281,8 @@ namespace MarbleSort.Editor
                 "Right Wall",
                 PrimitiveType.Cube,
                 basinRoot.transform,
-                new Vector3(4.05f, 2.5f, 0f),
-                new Vector3(0.25f, 8.5f, 0.6f),
+                new Vector3(4.05f, 1.7f, 0f),
+                new Vector3(0.25f, 6.75f, 0.6f),
                 Quaternion.identity,
                 border,
                 true);
@@ -278,7 +292,7 @@ namespace MarbleSort.Editor
                 PrimitiveType.Cube,
                 basinRoot.transform,
                 new Vector3(-2.15f, -1.15f, 0f),
-                new Vector3(3.7f, 0.28f, 0.6f),
+                new Vector3(3.84f, 0.28f, 0.6f),
                 Quaternion.Euler(0f, 0f, -13f),
                 border,
                 true);
@@ -298,7 +312,7 @@ namespace MarbleSort.Editor
                 PrimitiveType.Cube,
                 basinRoot.transform,
                 new Vector3(2.15f, -1.15f, 0f),
-                new Vector3(3.7f, 0.28f, 0.6f),
+                new Vector3(3.84f, 0.28f, 0.6f),
                 Quaternion.Euler(0f, 0f, 13f),
                 border,
                 true);
@@ -312,6 +326,14 @@ namespace MarbleSort.Editor
                 Quaternion.Euler(0f, 0f, 13f),
                 shadow,
                 false);
+
+            // The approved environment plate provides the complete premium molded artwork.
+            // Keep these objects as the gameplay collision rig but do not render flat duplicates.
+            Renderer[] physicsRenderers = basinRoot.GetComponentsInChildren<Renderer>(true);
+            for (int index = 0; index < physicsRenderers.Length; index++)
+            {
+                physicsRenderers[index].enabled = false;
+            }
         }
 
         private static TopGridController CreateTopGrid(
@@ -323,8 +345,8 @@ namespace MarbleSort.Editor
         {
             GameObject gridRoot = new GameObject("Runtime Top Grid");
             gridRoot.transform.SetParent(parent);
-            gridRoot.transform.localPosition = new Vector3(0f, 1.85f, 0f);
-            gridRoot.transform.localScale = Vector3.one * 1.18f;
+            gridRoot.transform.localPosition = new Vector3(0f, 0.55f, 0f);
+            gridRoot.transform.localScale = new Vector3(1.18f, 1.18f, 1f);
             TopGridController controller = gridRoot.AddComponent<TopGridController>();
             controller.Configure(bootstrap, marblePool, palette, camera);
             return controller;
@@ -332,70 +354,24 @@ namespace MarbleSort.Editor
 
         private static StadiumConveyorController CreateConveyor(
             Transform parent,
-            GameBootstrap bootstrap,
-            Material conveyor,
-            Material conveyorInner,
-            Material border,
-            Material shadow,
-            Material conveyorSlot)
+            GameBootstrap bootstrap)
         {
             GameObject conveyorRoot = new GameObject("Stadium Conveyor");
             conveyorRoot.transform.SetParent(parent);
-            conveyorRoot.transform.localPosition = new Vector3(0f, -3.25f, 0f);
-
-            GameObject trackShadow = PresentationMeshFactory.CreateStadiumRibbon(
-                "Track Shadow",
-                conveyorRoot.transform,
-                7f,
-                0.75f,
-                0.61f,
-                shadow);
-            trackShadow.transform.localPosition = new Vector3(0.04f, -0.07f, 0.18f);
-
-            GameObject trackRim = PresentationMeshFactory.CreateStadiumRibbon(
-                "Track Rim",
-                conveyorRoot.transform,
-                7f,
-                0.75f,
-                0.55f,
-                border);
-            trackRim.transform.localPosition = new Vector3(0f, 0f, 0.1f);
-
-            GameObject trackSurface = PresentationMeshFactory.CreateStadiumRibbon(
-                "Track Surface",
-                conveyorRoot.transform,
-                7f,
-                0.75f,
-                0.42f,
-                conveyor);
-            trackSurface.transform.localPosition = new Vector3(0f, 0f, 0.04f);
-
-            GameObject trackHighlight = PresentationMeshFactory.CreateStadiumRibbon(
-                "Track Highlight",
-                conveyorRoot.transform,
-                7f,
-                0.75f,
-                0.3f,
-                conveyorInner);
-            trackHighlight.transform.localPosition = new Vector3(0f, 0f, 0f);
+            conveyorRoot.transform.localPosition = new Vector3(0f, ConveyorLocalY, 0f);
+            conveyorRoot.transform.localScale = Vector3.one;
 
             List<Transform> slotViews = new List<Transform>(24);
             for (int index = 0; index < 24; index++)
             {
-                GameObject slot = CreateVisual(
-                    $"Slot {index + 1:00}",
-                    PrimitiveType.Sphere,
-                    conveyorRoot.transform,
-                    Vector3.zero,
-                    new Vector3(0.3f, 0.21f, 0.1f),
-                    Quaternion.identity,
-                    conveyorSlot,
-                    false);
+                GameObject slot = new GameObject($"Slot {index + 1:00}");
+                slot.transform.SetParent(conveyorRoot.transform, false);
                 slotViews.Add(slot.transform);
             }
 
             StadiumConveyorController controller = conveyorRoot.AddComponent<StadiumConveyorController>();
-            controller.Configure(bootstrap, 24, 4f, 7f, 0.75f, slotViews.ToArray());
+            controller.Configure(bootstrap, 24, 3.7f, 5.125664f, 0.51f, slotViews.ToArray());
+            conveyorRoot.AddComponent<ConveyorArtworkPresenter>();
             return controller;
         }
 
@@ -410,12 +386,16 @@ namespace MarbleSort.Editor
 
             BoxCollider trigger = entrance.AddComponent<BoxCollider>();
             trigger.isTrigger = true;
-            trigger.size = new Vector3(0.54f, 0.9f, 0.6f);
+            trigger.center = new Vector3(0f, ConveyorAdmissionController.ChuteTriggerCenterY, 0f);
+            trigger.size = new Vector3(
+                ConveyorAdmissionController.ChuteTriggerWidth,
+                ConveyorAdmissionController.ChuteTriggerHeight,
+                ConveyorAdmissionController.ChuteTriggerDepth);
 
             ConveyorAdmissionController admission = entrance.AddComponent<ConveyorAdmissionController>();
-            admission.Configure(conveyor, 0.16f, 0.011f, 0.1f);
+            admission.Configure(conveyor, 0.14f, 0.011f, 0f);
 
-            CreateVisual(
+            GameObject leftEntranceGuide = CreateVisual(
                 "Left Entrance Guide",
                 PrimitiveType.Cube,
                 entrance.transform,
@@ -425,7 +405,7 @@ namespace MarbleSort.Editor
                 border,
                 true);
 
-            CreateVisual(
+            GameObject rightEntranceGuide = CreateVisual(
                 "Right Entrance Guide",
                 PrimitiveType.Cube,
                 entrance.transform,
@@ -435,11 +415,16 @@ namespace MarbleSort.Editor
                 border,
                 true);
 
+            // The premium environment plate already includes the molded chute edges.
+            // Keep the guide colliders for admission physics, but hide the old flat posts.
+            leftEntranceGuide.GetComponent<Renderer>().enabled = false;
+            rightEntranceGuide.GetComponent<Renderer>().enabled = false;
+
             GameObject admissionGate = CreateVisual(
                 "Admission Gate",
                 PrimitiveType.Cube,
                 entrance.transform,
-                new Vector3(0f, -0.43f, 0f),
+                new Vector3(0f, ConveyorAdmissionController.ChuteGateLocalY, 0f),
                 new Vector3(0.64f, 0.12f, 0.6f),
                 Quaternion.identity,
                 border,
@@ -517,19 +502,7 @@ namespace MarbleSort.Editor
 
         private static Material GetOrCreateBackgroundMaterial()
         {
-            TextureImporter importer = AssetImporter.GetAtPath(BackgroundTexturePath) as TextureImporter;
-            if (importer != null)
-            {
-                importer.textureType = TextureImporterType.Default;
-                importer.wrapMode = TextureWrapMode.Clamp;
-                importer.filterMode = FilterMode.Bilinear;
-                importer.mipmapEnabled = false;
-                importer.alphaIsTransparency = false;
-                importer.npotScale = TextureImporterNPOTScale.None;
-                importer.maxTextureSize = 2048;
-                importer.textureCompression = TextureImporterCompression.Compressed;
-                importer.SaveAndReimport();
-            }
+            ConfigurePremiumTexture(BackgroundTexturePath, false);
 
             Texture2D texture = AssetDatabase.LoadAssetAtPath<Texture2D>(BackgroundTexturePath);
             string path = $"{MaterialsPath}/PortraitBackground.mat";
@@ -549,6 +522,23 @@ namespace MarbleSort.Editor
             material.color = Color.white;
             EditorUtility.SetDirty(material);
             return material;
+        }
+
+        private static void ConfigurePremiumTexture(string assetPath, bool alphaIsTransparency)
+        {
+            TextureImporter importer = AssetImporter.GetAtPath(assetPath) as TextureImporter;
+            if (importer != null)
+            {
+                importer.textureType = TextureImporterType.Default;
+                importer.wrapMode = TextureWrapMode.Clamp;
+                importer.filterMode = FilterMode.Bilinear;
+                importer.mipmapEnabled = false;
+                importer.alphaIsTransparency = alphaIsTransparency;
+                importer.npotScale = TextureImporterNPOTScale.None;
+                importer.maxTextureSize = 2048;
+                importer.textureCompression = TextureImporterCompression.Uncompressed;
+                importer.SaveAndReimport();
+            }
         }
 
         private static Material GetOrCreateMaterial(string name, Color color)

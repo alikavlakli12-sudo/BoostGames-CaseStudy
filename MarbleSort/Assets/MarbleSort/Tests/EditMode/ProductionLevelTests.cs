@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using MarbleSort.Data;
+using MarbleSort.Presentation;
 using MarbleSort.Session;
 using MarbleSort.Validation;
 using NUnit.Framework;
@@ -17,8 +18,10 @@ namespace MarbleSort.Tests.EditMode
         public void ProductionLevels_FollowTheApprovedDifficultyCurve()
         {
             LevelCatalogData catalog = LoadProductionCatalog();
-            int[] expectedTopBoxCounts = { 2, 3, 4, 6, 8 };
-            int[] expectedMaximumDepths = { 1, 1, 1, 2, 3 };
+            int[] expectedTopBoxCounts = { 6, 6, 9, 12, 10 };
+            int[] expectedVisibleBoxCounts = { 4, 2, 3, 4, 4 };
+            int[] expectedColorCounts = { 2, 3, 4, 4, 5 };
+            int[] expectedMaximumDepths = { 2, 3, 4, 3, 3 };
 
             Assert.That(catalog.levels.Length, Is.EqualTo(expectedTopBoxCounts.Length));
             for (int levelIndex = 0; levelIndex < catalog.levels.Length; levelIndex++)
@@ -29,10 +32,130 @@ namespace MarbleSort.Tests.EditMode
                     Is.EqualTo(expectedTopBoxCounts[levelIndex]),
                     $"Unexpected top-box count in {level.displayName}.");
                 Assert.That(
+                    GetVisibleBoxCount(level.topGrid.boxes),
+                    Is.EqualTo(expectedVisibleBoxCounts[levelIndex]),
+                    $"Unexpected initially visible top-box count in {level.displayName}.");
+                Assert.That(
+                    GetDistinctColorCount(level.topGrid.boxes),
+                    Is.EqualTo(expectedColorCounts[levelIndex]),
+                    $"Unexpected color count in {level.displayName}.");
+                Assert.That(
                     GetMaximumDepth(level.topGrid.boxes),
                     Is.EqualTo(expectedMaximumDepths[levelIndex]),
                     $"Unexpected stack depth in {level.displayName}.");
             }
+        }
+
+        [Test]
+        public void LevelFive_UsesApprovedMysteryFormationAndDedicatedPinkTray()
+        {
+            LevelData level = LoadProductionCatalog().levels[4];
+            int firstRowVisible = 0;
+            int middleMysteries = 0;
+            int topMysteries = 0;
+            int totalMysteries = 0;
+            int pinkCount = 0;
+
+            for (int index = 0; index < level.topGrid.boxes.Length; index++)
+            {
+                TopBoxData box = level.topGrid.boxes[index];
+                if (box.row == 0)
+                {
+                    firstRowVisible++;
+                    Assert.That(box.mystery, Is.False, box.id);
+                }
+
+                if (box.mystery)
+                {
+                    totalMysteries++;
+                    if (box.row == 1) middleMysteries++;
+                    if (box.row == 2) topMysteries++;
+                }
+
+                if (string.Equals(box.color, "pink", StringComparison.OrdinalIgnoreCase))
+                {
+                    pinkCount++;
+                    Assert.That(box.mystery, Is.True);
+                    Assert.That(box.row, Is.EqualTo(2));
+                }
+            }
+
+            Assert.That(firstRowVisible, Is.EqualTo(4));
+            Assert.That(middleMysteries, Is.EqualTo(4));
+            Assert.That(topMysteries, Is.EqualTo(2));
+            Assert.That(totalMysteries, Is.EqualTo(6));
+            Assert.That(pinkCount, Is.EqualTo(1));
+            AssertFormation(
+                level,
+                "0x0", "1x0", "2x0", "3x0",
+                "0x1", "1x1", "2x1", "3x1",
+                "1x2", "2x2");
+        }
+
+        [Test]
+        public void LevelFive_ReceiverQueuesAreInterleavedAndPreserveColorDemand()
+        {
+            LevelData level = LoadProductionCatalog().levels[4];
+            Dictionary<string, int> actualCounts =
+                new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, int> expectedCounts =
+                new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+                {
+                    { "blue", 9 },
+                    { "green", 6 },
+                    { "orange", 6 },
+                    { "yellow", 6 },
+                    { "pink", 3 }
+                };
+            string[] expectedFrontColors = { "blue", "green", "orange", "yellow" };
+
+            Assert.That(level.receiverLanes.Length, Is.EqualTo(4));
+            int totalReceiverCount = 0;
+            for (int laneIndex = 0; laneIndex < level.receiverLanes.Length; laneIndex++)
+            {
+                ReceiverLaneData lane = level.receiverLanes[laneIndex];
+                Assert.That(lane.boxes, Is.Not.Empty, lane.id);
+                Assert.That(
+                    lane.boxes[0].color,
+                    Is.EqualTo(expectedFrontColors[laneIndex]).IgnoreCase,
+                    $"{lane.id} should retain its readable starting receiver color.");
+
+                string previousColor = string.Empty;
+                for (int boxIndex = 0; boxIndex < lane.boxes.Length; boxIndex++)
+                {
+                    string color = lane.boxes[boxIndex].color.Trim().ToLowerInvariant();
+                    Assert.That(
+                        color,
+                        Is.Not.EqualTo(previousColor),
+                        $"{lane.id} groups adjacent '{color}' receivers at positions " +
+                        $"{boxIndex} and {boxIndex + 1}.");
+
+                    actualCounts[color] = actualCounts.TryGetValue(color, out int count)
+                        ? count + 1
+                        : 1;
+                    previousColor = color;
+                    totalReceiverCount++;
+                }
+            }
+
+            Assert.That(totalReceiverCount, Is.EqualTo(30));
+            Assert.That(actualCounts.Count, Is.EqualTo(expectedCounts.Count));
+            foreach (KeyValuePair<string, int> expected in expectedCounts)
+            {
+                Assert.That(
+                    actualCounts.TryGetValue(expected.Key, out int actual),
+                    Is.True,
+                    $"Level 5 is missing '{expected.Key}' receivers.");
+                Assert.That(actual, Is.EqualTo(expected.Value), expected.Key);
+            }
+
+            LevelSolvabilityResult solution = LevelSolvabilityAnalyzer.Analyze(level, 24);
+            Assert.That(solution.IsSolvable, Is.True, solution.Message);
+            Assert.That(solution.SelectionSequence.Count, Is.EqualTo(10));
+            Assert.That(solution.PeakConveyorOccupancy, Is.InRange(1, 24));
+            TestContext.Out.WriteLine(
+                $"Level 5 mixed receiver solution: {solution.Message} " +
+                $"Sequence: {string.Join(" -> ", solution.SelectionSequence)}");
         }
 
         [Test]
@@ -51,6 +174,71 @@ namespace MarbleSort.Tests.EditMode
                 Assert.That(result.SelectionSequence.Count, Is.EqualTo(level.topGrid.boxes.Length));
                 Assert.That(result.PeakConveyorOccupancy, Is.InRange(1, catalog.conveyor.slotCount));
                 Assert.That(result.ExploredStateCount, Is.GreaterThan(0));
+            }
+        }
+
+        [Test]
+        public void ProductionLevels_EveryOccupiedColumnHasAFirstRowTray()
+        {
+            LevelCatalogData catalog = LoadProductionCatalog();
+
+            for (int levelIndex = 0; levelIndex < catalog.levels.Length; levelIndex++)
+            {
+                LevelData level = catalog.levels[levelIndex];
+                HashSet<int> occupiedColumns = new HashSet<int>();
+                HashSet<int> firstRowColumns = new HashSet<int>();
+                for (int boxIndex = 0; boxIndex < level.topGrid.boxes.Length; boxIndex++)
+                {
+                    TopBoxData box = level.topGrid.boxes[boxIndex];
+                    occupiedColumns.Add(box.column);
+                    if (box.row == 0)
+                    {
+                        firstRowColumns.Add(box.column);
+                    }
+                }
+
+                Assert.That(
+                    firstRowColumns.SetEquals(occupiedColumns),
+                    Is.True,
+                    $"{level.displayName} leaves an empty first-row position below a hidden tray.");
+            }
+        }
+
+        [Test]
+        public void LevelsTwoAndThree_UseTheApprovedCompactFormations()
+        {
+            LevelCatalogData catalog = LoadProductionCatalog();
+
+            AssertFormation(
+                catalog.levels[1],
+                "1x0", "2x0", "1x1", "2x1", "1x2", "2x2");
+            AssertFormation(
+                catalog.levels[2],
+                "0x0", "1x0", "2x0",
+                "0x1", "1x1",
+                "0x2", "1x2",
+                "0x3", "1x3");
+        }
+
+        [Test]
+        public void EveryProductionLevel_LoadsItsExactBakedFormationSheet()
+        {
+            LevelCatalogData catalog = LoadProductionCatalog();
+
+            for (int levelIndex = 0; levelIndex < catalog.levels.Length; levelIndex++)
+            {
+                LevelData level = catalog.levels[levelIndex];
+                Assert.That(
+                    PremiumSheetArtworkLibrary.TryGet(level.topGrid, out Sprite artwork),
+                    Is.True,
+                    $"Missing baked formation sheet for {level.displayName}.");
+                Assert.That(artwork, Is.Not.Null);
+                Assert.That(
+                    artwork.texture.width,
+                    Is.EqualTo(PremiumSheetArtworkLibrary.TextureWidth));
+                Assert.That(
+                    artwork.texture.height,
+                    Is.EqualTo(PremiumSheetArtworkLibrary.TextureHeight));
             }
         }
 
@@ -130,6 +318,46 @@ namespace MarbleSort.Tests.EditMode
             }
 
             return maximumDepth;
+        }
+
+        private static void AssertFormation(LevelData level, params string[] expectedCells)
+        {
+            HashSet<string> actualCells = new HashSet<string>(StringComparer.Ordinal);
+            for (int index = 0; index < level.topGrid.boxes.Length; index++)
+            {
+                TopBoxData box = level.topGrid.boxes[index];
+                actualCells.Add($"{box.column}x{box.row}");
+            }
+
+            Assert.That(
+                actualCells.SetEquals(expectedCells),
+                Is.True,
+                $"{level.displayName} does not match its approved compact formation.");
+        }
+
+        private static int GetVisibleBoxCount(TopBoxData[] boxes)
+        {
+            int visibleCount = 0;
+            for (int index = 0; index < boxes.Length; index++)
+            {
+                if (boxes[index].row == 0)
+                {
+                    visibleCount++;
+                }
+            }
+
+            return visibleCount;
+        }
+
+        private static int GetDistinctColorCount(TopBoxData[] boxes)
+        {
+            HashSet<string> colors = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            for (int index = 0; index < boxes.Length; index++)
+            {
+                colors.Add(boxes[index].color);
+            }
+
+            return colors.Count;
         }
 
         private static void AssertIssue(ValidationReport report, string expectedCode)

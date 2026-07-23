@@ -5,7 +5,7 @@
 - **Data** parses the single JSON level catalog into serializable data-transfer objects.
 - **Validation** applies deterministic rules shared by runtime loading and editor tooling.
 - **Session** owns the current level index and wraps to level one after the final level.
-- **Top Grid** owns box exposure, selection, nine-marble release, and column collapse.
+- **Top Grid** owns fixed-grid exposure, selection, and nine-marble release. Hidden trays reveal when a tray directly in front or beside them is cleared; authored grid positions never compact or move.
 - **Marbles** own lifecycle state while pooling owns allocation and reuse.
 - **Platform** contains physical marbles and feeds one entrance queue.
 - **Conveyor** advances 24 logical slots along one analytical stadium path.
@@ -16,10 +16,19 @@
 ## Performance rules
 
 - Dynamic rigidbodies exist only while marbles are spawning, falling, or waiting on the platform.
+  Tray selection reserves all nine release positions atomically, and the loose/reserved board
+  total cannot exceed 36. Conveyor and receiver actors are excluded from this board budget.
+- The marble pool prewarms 72 actors: 36 board marbles, 24 conveyor occupants, four possible
+  receiver transfers, and eight hand-off reserves. Runtime expansion and peak loose/active counts
+  remain observable for QA, and the bounded overlap solver performs no collection allocation.
 - Conveyor marbles are kinematic and occupy explicit logical slots.
 - Conveyor motion is updated by one controller rather than one component per marble.
+- The 192-frame conveyor render is stored in one padded 8×24 atlas. One SpriteRenderer and one
+  shared material select the phase-locked frame through a reused MaterialPropertyBlock; no runtime
+  sprite array, `Resources.LoadAll`, per-frame allocation, or independent visual timer exists.
 - Gameplay checks are event-driven; scene searches and per-frame allocations are avoided.
-- Reusable marbles and effects are pooled.
+- Reusable marbles and effects are pooled. A rejected full-board selection does not mutate tray
+  state and uses a prebuilt, self-hiding text renderer on the attempted tray.
 - Rounded box and stadium meshes are cached by dimensions and regenerated from serialized
   specifications instead of being duplicated in the scene.
 - One feedback controller, particle system, audio source, and rolling performance probe serve the

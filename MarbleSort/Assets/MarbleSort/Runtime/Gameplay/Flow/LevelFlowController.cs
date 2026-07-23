@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using MarbleSort.Core;
 using MarbleSort.Data;
 using MarbleSort.Gameplay.Conveyor;
@@ -22,6 +21,12 @@ namespace MarbleSort.Gameplay.Flow
     [DisallowMultipleComponent]
     public sealed class LevelFlowController : MonoBehaviour
     {
+        public const int CompletionCoinReward = 25;
+        public const int MysteryBoxCoinReward = 25;
+        private const int MysteryBoxMilestoneLevelIndex = 3;
+        private const int CompletionStageCount = 5;
+        private const int FirstVisibleCompletionStage = 2;
+
         [SerializeField] private GameBootstrap bootstrap;
         [SerializeField] private TopGridController topGrid;
         [SerializeField] private StadiumConveyorController conveyor;
@@ -29,11 +34,10 @@ namespace MarbleSort.Gameplay.Flow
         [SerializeField] private ReceiverQueueController receivers;
         [SerializeField] private MarblePool marblePool;
         [SerializeField] private GameHudView hud;
-        [SerializeField, Min(0f)] private float completionAdvanceDelay = 1.2f;
+        [SerializeField, Min(0f)] private float completionAdvanceDelay = 1.6f;
 
         private ConveyorSlotSnapshot[] conveyorSnapshots = Array.Empty<ConveyorSlotSnapshot>();
         private ReceiverSnapshot[] receiverSnapshots = Array.Empty<ReceiverSnapshot>();
-        private Coroutine advanceRoutine;
         private bool suppressEvaluation;
 
         public event Action<LevelFlowStatus> StatusChanged;
@@ -45,6 +49,17 @@ namespace MarbleSort.Gameplay.Flow
         public int CurrentLevelIndex => bootstrap?.Session?.CurrentLevelIndex ?? -1;
 
         public bool IsInitialized { get; private set; }
+
+        public int CompletionRewardStage { get; private set; }
+
+        public int CompletionRewardPercent => CompletionRewardStage * 20;
+
+        public static int CompletionStageForLevel(int levelIndex)
+        {
+            int visibleStageCount = CompletionStageCount - FirstVisibleCompletionStage + 1;
+            return FirstVisibleCompletionStage +
+                   (Mathf.Max(0, levelIndex) % visibleStageCount);
+        }
 
         public void Configure(
             GameBootstrap gameBootstrap,
@@ -132,6 +147,7 @@ namespace MarbleSort.Gameplay.Flow
 
             conveyor.SlotOccupied += HandleConveyorChanged;
             conveyor.SlotCleared += HandleConveyorChanged;
+            topGrid.AllTraysSelected += HandleAllTraysSelected;
             receivers.StateChanged += HandleReceiverChanged;
             hud?.Configure(this);
             ShowPlayingHud();
@@ -154,7 +170,13 @@ namespace MarbleSort.Gameplay.Flow
 
         private void HandleReceiverChanged()
         {
+            UpdateHudProgress();
             Reevaluate();
+        }
+
+        private void HandleAllTraysSelected()
+        {
+            conveyor?.SetBoardClearedSpeed(true);
         }
 
         private void SetComplete()
@@ -162,32 +184,31 @@ namespace MarbleSort.Gameplay.Flow
             Status = LevelFlowStatus.Complete;
             SetGameplayEnabled(false);
             LevelData level = GetCurrentLevel();
-            hud?.ShowComplete(level?.displayName ?? "Level");
+            // Completion progress belongs to the selected level, not to how
+            // many levels happened to be completed in this play session. This
+            // keeps editor level skips and direct level selection accurate.
+            CompletionRewardStage = CompletionStageForLevel(CurrentLevelIndex);
+            hud?.AddCoins(CompletionCoinReward);
+            hud?.ShowComplete(
+                level?.displayName ?? "Level",
+                CompletionRewardStage,
+                CompletionCoinReward,
+                CurrentLevelIndex == MysteryBoxMilestoneLevelIndex);
             StatusChanged?.Invoke(Status);
-            advanceRoutine = StartCoroutine(AdvanceAfterDelay());
         }
 
         private void SetDeadlocked()
         {
             Status = LevelFlowStatus.Deadlocked;
             SetGameplayEnabled(false);
+            if (conveyor != null)
+            {
+                conveyor.enabled = false;
+            }
+
             LevelData level = GetCurrentLevel();
-            hud?.ShowDeadlocked(level?.displayName ?? "Level");
+            hud?.ShowDeadlocked(level?.displayName ?? "Level", conveyor);
             StatusChanged?.Invoke(Status);
-        }
-
-        private IEnumerator AdvanceAfterDelay()
-        {
-            if (completionAdvanceDelay > 0f)
-            {
-                yield return new WaitForSeconds(completionAdvanceDelay);
-            }
-
-            advanceRoutine = null;
-            if (Status == LevelFlowStatus.Complete)
-            {
-                AdvanceToNextLevel();
-            }
         }
 
         private bool LoadLevel(int levelIndex)
@@ -199,15 +220,10 @@ namespace MarbleSort.Gameplay.Flow
                 return false;
             }
 
-            if (advanceRoutine != null)
-            {
-                StopCoroutine(advanceRoutine);
-                advanceRoutine = null;
-            }
-
             suppressEvaluation = true;
             receivers.SetCollectionEnabled(false);
             admission.ResetAdmission();
+            conveyor.enabled = true;
             conveyor.ResetConveyor(marblePool);
             marblePool.ReturnAll();
 
@@ -292,7 +308,19 @@ namespace MarbleSort.Gameplay.Flow
         private void ShowPlayingHud()
         {
             LevelData level = GetCurrentLevel();
-            hud?.ShowPlaying(level?.displayName ?? "Level");
+            int completed = receivers?.State?.CompletedBoxCount ?? 0;
+            int total = receivers?.State?.TotalBoxCount ?? 0;
+            hud?.ShowPlaying(level?.displayName ?? "Level", completed, total);
+        }
+
+        private void UpdateHudProgress()
+        {
+            if (receivers?.State == null)
+            {
+                return;
+            }
+
+            hud?.SetProgress(receivers.State.CompletedBoxCount, receivers.State.TotalBoxCount);
         }
 
         private void OnDestroy()
@@ -303,10 +331,16 @@ namespace MarbleSort.Gameplay.Flow
                 conveyor.SlotCleared -= HandleConveyorChanged;
             }
 
+            if (topGrid != null)
+            {
+                topGrid.AllTraysSelected -= HandleAllTraysSelected;
+            }
+
             if (receivers != null)
             {
                 receivers.StateChanged -= HandleReceiverChanged;
             }
+
         }
 
         private void OnValidate()

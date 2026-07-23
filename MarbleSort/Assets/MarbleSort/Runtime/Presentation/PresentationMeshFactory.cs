@@ -106,19 +106,46 @@ namespace MarbleSort.Presentation
             float halfWidth,
             int samples = 96)
         {
+            return GetStadiumRibbonMesh(
+                straightLength,
+                turnRadius,
+                halfWidth,
+                halfWidth,
+                samples);
+        }
+
+        public static Mesh GetStadiumRibbonMesh(
+            float straightLength,
+            float turnRadius,
+            float innerHalfWidth,
+            float outerHalfWidth,
+            int samples = 96)
+        {
             straightLength = Mathf.Max(0.01f, straightLength);
             turnRadius = Mathf.Max(0.01f, turnRadius);
-            halfWidth = Mathf.Clamp(halfWidth, 0.01f, turnRadius * 0.9f);
+            innerHalfWidth = Mathf.Clamp(innerHalfWidth, 0.01f, turnRadius * 0.9f);
+            outerHalfWidth = Mathf.Clamp(outerHalfWidth, 0.01f, turnRadius * 0.9f);
             samples = Mathf.Clamp(samples, 24, 192);
 
-            StadiumMeshKey key = new StadiumMeshKey(straightLength, turnRadius, halfWidth, samples);
+            StadiumMeshKey key = new StadiumMeshKey(
+                straightLength,
+                turnRadius,
+                innerHalfWidth,
+                outerHalfWidth,
+                samples);
             if (StadiumMeshes.TryGetValue(key, out Mesh cached))
             {
                 return cached;
             }
 
-            Mesh mesh = BuildStadiumRibbonMesh(straightLength, turnRadius, halfWidth, samples);
-            mesh.name = $"Stadium Ribbon {straightLength:0.###}-{turnRadius:0.###}-{halfWidth:0.###}";
+            Mesh mesh = BuildStadiumRibbonMesh(
+                straightLength,
+                turnRadius,
+                innerHalfWidth,
+                outerHalfWidth,
+                samples);
+            mesh.name =
+                $"Stadium Ribbon {straightLength:0.###}-{turnRadius:0.###}-{innerHalfWidth:0.###}-{outerHalfWidth:0.###}";
             mesh.hideFlags = HideFlags.DontSave;
             StadiumMeshes.Add(key, mesh);
             return mesh;
@@ -234,34 +261,59 @@ namespace MarbleSort.Presentation
         private static Mesh BuildStadiumRibbonMesh(
             float straightLength,
             float turnRadius,
-            float halfWidth,
+            float innerHalfWidth,
+            float outerHalfWidth,
             int samples)
         {
-            Vector3[] vertices = new Vector3[samples * 2];
+            // Duplicate the first cross-section at UV x = 1. Without this seam pair,
+            // the closing triangles interpolate from x ~= 1 back to x = 0 and squeeze
+            // the entire looping texture into one tiny turn segment.
+            int crossSectionCount = samples + 1;
+            const int verticesPerCrossSection = 3;
+            Vector3[] vertices = new Vector3[crossSectionCount * verticesPerCrossSection];
             Vector3[] normals = new Vector3[vertices.Length];
             Vector2[] uvs = new Vector2[vertices.Length];
-            int[] triangles = new int[samples * 6];
+            int[] triangles = new int[samples * 12];
 
-            for (int index = 0; index < samples; index++)
+            for (int index = 0; index < crossSectionCount; index++)
             {
                 float normalized = index / (float)samples;
                 StadiumPose pose = StadiumPath.Evaluate(normalized, straightLength, turnRadius);
                 Vector3 normal = new Vector3(-pose.Tangent.y, pose.Tangent.x, 0f).normalized;
-                vertices[index * 2] = pose.Position + (normal * halfWidth);
-                vertices[(index * 2) + 1] = pose.Position - (normal * halfWidth);
-                normals[index * 2] = Vector3.back;
-                normals[(index * 2) + 1] = Vector3.back;
-                uvs[index * 2] = new Vector2(normalized, 1f);
-                uvs[(index * 2) + 1] = new Vector2(normalized, 0f);
+                // StadiumPath runs counterclockwise, so +normal always points toward
+                // the center rail and -normal always points toward the outside rim.
+                int vertexIndex = index * verticesPerCrossSection;
+                vertices[vertexIndex] = pose.Position + (normal * innerHalfWidth);
+                vertices[vertexIndex + 1] = pose.Position;
+                vertices[vertexIndex + 2] = pose.Position - (normal * outerHalfWidth);
+                normals[vertexIndex] = Vector3.back;
+                normals[vertexIndex + 1] = Vector3.back;
+                normals[vertexIndex + 2] = Vector3.back;
+                uvs[vertexIndex] = new Vector2(normalized, 1f);
+                uvs[vertexIndex + 1] = new Vector2(normalized, 0.5f);
+                uvs[vertexIndex + 2] = new Vector2(normalized, 0f);
+            }
 
-                int next = (index + 1) % samples;
-                int triangleIndex = index * 6;
-                triangles[triangleIndex] = index * 2;
-                triangles[triangleIndex + 1] = next * 2;
-                triangles[triangleIndex + 2] = (next * 2) + 1;
-                triangles[triangleIndex + 3] = index * 2;
-                triangles[triangleIndex + 4] = (next * 2) + 1;
-                triangles[triangleIndex + 5] = (index * 2) + 1;
+            for (int index = 0; index < samples; index++)
+            {
+                int next = index + 1;
+                int currentVertex = index * verticesPerCrossSection;
+                int nextVertex = next * verticesPerCrossSection;
+                int triangleIndex = index * 12;
+
+                triangles[triangleIndex] = currentVertex;
+                triangles[triangleIndex + 1] = nextVertex;
+                triangles[triangleIndex + 2] = nextVertex + 1;
+                triangles[triangleIndex + 3] = currentVertex;
+                triangles[triangleIndex + 4] = nextVertex + 1;
+                triangles[triangleIndex + 5] = currentVertex + 1;
+
+                triangles[triangleIndex + 6] = currentVertex + 1;
+                triangles[triangleIndex + 7] = nextVertex + 1;
+                triangles[triangleIndex + 8] = nextVertex + 2;
+                triangles[triangleIndex + 9] = currentVertex + 1;
+                triangles[triangleIndex + 10] = nextVertex + 2;
+                triangles[triangleIndex + 11] = currentVertex + 2;
             }
 
             Mesh mesh = new Mesh
@@ -320,21 +372,29 @@ namespace MarbleSort.Presentation
         {
             private readonly int straightLength;
             private readonly int radius;
-            private readonly int width;
+            private readonly int innerWidth;
+            private readonly int outerWidth;
             private readonly int samples;
 
-            public StadiumMeshKey(float straightLength, float radius, float width, int samples)
+            public StadiumMeshKey(
+                float straightLength,
+                float radius,
+                float innerWidth,
+                float outerWidth,
+                int samples)
             {
                 this.straightLength = Quantize(straightLength);
                 this.radius = Quantize(radius);
-                this.width = Quantize(width);
+                this.innerWidth = Quantize(innerWidth);
+                this.outerWidth = Quantize(outerWidth);
                 this.samples = samples;
             }
 
             public bool Equals(StadiumMeshKey other)
             {
                 return straightLength == other.straightLength && radius == other.radius &&
-                       width == other.width && samples == other.samples;
+                       innerWidth == other.innerWidth && outerWidth == other.outerWidth &&
+                       samples == other.samples;
             }
 
             public override bool Equals(object obj)
@@ -348,7 +408,8 @@ namespace MarbleSort.Presentation
                 {
                     int hashCode = straightLength;
                     hashCode = (hashCode * 397) ^ radius;
-                    hashCode = (hashCode * 397) ^ width;
+                    hashCode = (hashCode * 397) ^ innerWidth;
+                    hashCode = (hashCode * 397) ^ outerWidth;
                     return (hashCode * 397) ^ samples;
                 }
             }

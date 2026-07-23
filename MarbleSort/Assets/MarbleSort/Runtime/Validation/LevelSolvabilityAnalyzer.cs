@@ -37,7 +37,7 @@ namespace MarbleSort.Validation
         public const int MarblesPerTopBox = 9;
         public const int MarblesPerReceiverBox = 3;
 
-        private static readonly string[] ColorIds = { "green", "blue", "orange", "yellow" };
+        private static readonly string[] ColorIds = { "green", "blue", "orange", "yellow", "pink" };
 
         public static LevelSolvabilityResult Analyze(LevelData level, int conveyorCapacity)
         {
@@ -56,7 +56,7 @@ namespace MarbleSort.Validation
                 return Failed(error);
             }
 
-            SearchState initial = new SearchState(model.Columns.Length, model.ReceiverLanes.Length);
+            SearchState initial = new SearchState(model.TopBoxes.Length, model.ReceiverLanes.Length);
             HashSet<string> visited = new HashSet<string>(StringComparer.Ordinal);
             List<string> path = new List<string>(model.TopBoxCount);
             List<string> solution = new List<string>(model.TopBoxCount);
@@ -118,18 +118,16 @@ namespace MarbleSort.Validation
                 return false;
             }
 
-            for (int columnIndex = 0; columnIndex < model.Columns.Length; columnIndex++)
+            for (int boxIndex = 0; boxIndex < model.TopBoxes.Length; boxIndex++)
             {
-                int boxIndex = state.NextBoxByColumn[columnIndex];
-                TopBoxModel[] column = model.Columns[columnIndex];
-                if (boxIndex >= column.Length)
+                if (!IsTopBoxExposed(model, state, boxIndex))
                 {
                     continue;
                 }
 
-                TopBoxModel box = column[boxIndex];
+                TopBoxModel box = model.TopBoxes[boxIndex];
                 SearchState next = state.Clone();
-                next.NextBoxByColumn[columnIndex]++;
+                next.RemovedTopBoxes[boxIndex] = true;
                 if (!TryReleaseBox(model, next, box.ColorIndex, conveyorCapacity))
                 {
                     continue;
@@ -153,6 +151,43 @@ namespace MarbleSort.Validation
             }
 
             peakOccupancy = 0;
+            return false;
+        }
+
+        private static bool IsTopBoxExposed(
+            LevelModel model,
+            SearchState state,
+            int boxIndex)
+        {
+            if (state.RemovedTopBoxes[boxIndex])
+            {
+                return false;
+            }
+
+            TopBoxModel box = model.TopBoxes[boxIndex];
+            if (box.Row == 0)
+            {
+                return true;
+            }
+
+            for (int index = 0; index < model.TopBoxes.Length; index++)
+            {
+                if (!state.RemovedTopBoxes[index])
+                {
+                    continue;
+                }
+
+                TopBoxModel cleared = model.TopBoxes[index];
+                bool directlyInFront =
+                    cleared.Column == box.Column && cleared.Row == box.Row - 1;
+                bool directlyBeside =
+                    cleared.Row == box.Row && Math.Abs(cleared.Column - box.Column) == 1;
+                if (directlyInFront || directlyBeside)
+                {
+                    return true;
+                }
+            }
+
             return false;
         }
 
@@ -211,9 +246,9 @@ namespace MarbleSort.Validation
 
         private static bool IsSolved(LevelModel model, SearchState state)
         {
-            for (int index = 0; index < model.Columns.Length; index++)
+            for (int index = 0; index < state.RemovedTopBoxes.Length; index++)
             {
-                if (state.NextBoxByColumn[index] < model.Columns[index].Length)
+                if (!state.RemovedTopBoxes[index])
                 {
                     return false;
                 }
@@ -245,7 +280,7 @@ namespace MarbleSort.Validation
         private static string BuildStateKey(SearchState state)
         {
             StringBuilder builder = new StringBuilder(96);
-            AppendArray(builder, state.NextBoxByColumn);
+            AppendArray(builder, state.RemovedTopBoxes);
             AppendArray(builder, state.ActiveReceiverByLane);
             AppendArray(builder, state.ActiveReceiverFillByLane);
             AppendArray(builder, state.ConveyorByColor);
@@ -263,6 +298,16 @@ namespace MarbleSort.Validation
             builder.Append('|');
         }
 
+        private static void AppendArray(StringBuilder builder, bool[] values)
+        {
+            for (int index = 0; index < values.Length; index++)
+            {
+                builder.Append(values[index] ? '1' : '0');
+            }
+
+            builder.Append('|');
+        }
+
         private static bool TryBuildModel(LevelData level, out LevelModel model, out string error)
         {
             TopGridData grid = level.topGrid;
@@ -273,16 +318,12 @@ namespace MarbleSort.Validation
                 return false;
             }
 
-            List<TopBoxModel>[] columns = new List<TopBoxModel>[grid.columns];
-            for (int index = 0; index < columns.Length; index++)
-            {
-                columns[index] = new List<TopBoxModel>();
-            }
+            TopBoxModel[] topBoxes = new TopBoxModel[grid.boxes.Length];
 
             for (int index = 0; index < grid.boxes.Length; index++)
             {
                 TopBoxData box = grid.boxes[index];
-                if (box == null || box.column < 0 || box.column >= columns.Length ||
+                if (box == null || box.column < 0 || box.column >= grid.columns ||
                     !TryGetColorIndex(box.color, out int colorIndex))
                 {
                     model = null;
@@ -290,16 +331,11 @@ namespace MarbleSort.Validation
                     return false;
                 }
 
-                columns[box.column].Add(new TopBoxModel(box.id, colorIndex, box.row));
-            }
-
-            TopBoxModel[][] columnModels = new TopBoxModel[columns.Length][];
-            int topBoxCount = 0;
-            for (int index = 0; index < columns.Length; index++)
-            {
-                columns[index].Sort(CompareTopBoxes);
-                columnModels[index] = columns[index].ToArray();
-                topBoxCount += columnModels[index].Length;
+                topBoxes[index] = new TopBoxModel(
+                    box.id,
+                    colorIndex,
+                    box.column,
+                    box.row);
             }
 
             ReceiverLaneData[] laneData = level.receiverLanes ?? Array.Empty<ReceiverLaneData>();
@@ -322,17 +358,9 @@ namespace MarbleSort.Validation
                 }
             }
 
-            model = new LevelModel(columnModels, lanes, topBoxCount);
+            model = new LevelModel(topBoxes, lanes);
             error = string.Empty;
             return true;
-        }
-
-        private static int CompareTopBoxes(TopBoxModel left, TopBoxModel right)
-        {
-            int rowComparison = left.Row.CompareTo(right.Row);
-            return rowComparison != 0
-                ? rowComparison
-                : string.Compare(left.Id, right.Id, StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool TryGetColorIndex(string colorId, out int colorIndex)
@@ -357,32 +385,34 @@ namespace MarbleSort.Validation
 
         private sealed class LevelModel
         {
-            public LevelModel(TopBoxModel[][] columns, ReceiverBoxModel[][] receiverLanes, int topBoxCount)
+            public LevelModel(TopBoxModel[] topBoxes, ReceiverBoxModel[][] receiverLanes)
             {
-                Columns = columns;
+                TopBoxes = topBoxes;
                 ReceiverLanes = receiverLanes;
-                TopBoxCount = topBoxCount;
             }
 
-            public TopBoxModel[][] Columns { get; }
+            public TopBoxModel[] TopBoxes { get; }
 
             public ReceiverBoxModel[][] ReceiverLanes { get; }
 
-            public int TopBoxCount { get; }
+            public int TopBoxCount => TopBoxes.Length;
         }
 
         private readonly struct TopBoxModel
         {
-            public TopBoxModel(string id, int colorIndex, int row)
+            public TopBoxModel(string id, int colorIndex, int column, int row)
             {
                 Id = id ?? string.Empty;
                 ColorIndex = colorIndex;
+                Column = column;
                 Row = row;
             }
 
             public string Id { get; }
 
             public int ColorIndex { get; }
+
+            public int Column { get; }
 
             public int Row { get; }
         }
@@ -399,9 +429,9 @@ namespace MarbleSort.Validation
 
         private sealed class SearchState
         {
-            public SearchState(int columnCount, int laneCount)
+            public SearchState(int topBoxCount, int laneCount)
             {
-                NextBoxByColumn = new int[columnCount];
+                RemovedTopBoxes = new bool[topBoxCount];
                 ActiveReceiverByLane = new int[laneCount];
                 ActiveReceiverFillByLane = new int[laneCount];
                 ConveyorByColor = new int[ColorIds.Length];
@@ -409,14 +439,14 @@ namespace MarbleSort.Validation
 
             private SearchState(SearchState source)
             {
-                NextBoxByColumn = (int[])source.NextBoxByColumn.Clone();
+                RemovedTopBoxes = (bool[])source.RemovedTopBoxes.Clone();
                 ActiveReceiverByLane = (int[])source.ActiveReceiverByLane.Clone();
                 ActiveReceiverFillByLane = (int[])source.ActiveReceiverFillByLane.Clone();
                 ConveyorByColor = (int[])source.ConveyorByColor.Clone();
                 PeakOccupancy = source.PeakOccupancy;
             }
 
-            public int[] NextBoxByColumn { get; }
+            public bool[] RemovedTopBoxes { get; }
 
             public int[] ActiveReceiverByLane { get; }
 

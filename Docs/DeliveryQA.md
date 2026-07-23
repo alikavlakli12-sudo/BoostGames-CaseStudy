@@ -58,6 +58,9 @@ The optional smoke player is written to `MarbleSort/Builds/QA/` and remains igno
 
 Final local verification on 2026-07-23:
 
+- Fresh GitHub clone: checked out `feature/level-restructure` at the pushed delivery commit and
+  passed the validator, both complete test suites, and the desktop smoke build without missing
+  scripts, scene references, shaders, or artwork.
 - EditMode: 62/62 tests passed.
 - PlayMode: 31/31 tests passed with the Metal graphics device.
 - Level 5 receiver queues: no adjacent repeated colors, exact 1:3 color totals, and a verified

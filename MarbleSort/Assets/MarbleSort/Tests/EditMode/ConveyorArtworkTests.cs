@@ -8,44 +8,73 @@ namespace MarbleSort.Tests.EditMode
     public sealed class ConveyorArtworkTests
     {
         [Test]
-        public void ApprovedConveyorArtwork_LoadsWithMobileSafeImportSettings()
+        public void ConveyorAnimation_LoadsFromOneMobileCompressedAtlas()
         {
-            Assert.That(ConveyorArtworkLibrary.TryGet(out Sprite artwork), Is.True);
-            Assert.That(artwork, Is.Not.Null);
-            Assert.That(artwork.texture, Is.Not.Null);
+            Assert.That(
+                ConveyorArtworkLibrary.TryGetAnimation(out ConveyorAnimationAsset animation),
+                Is.True);
+            Assert.That(animation, Is.Not.Null);
+            Assert.That(animation.Atlas, Is.Not.Null);
+            Assert.That(animation.FrameGeometrySprite, Is.Not.Null);
+            Assert.That(animation.Material, Is.Not.Null);
             StringAssert.EndsWith(
-                "/ConveyorApprovedReference.png",
-                AssetDatabase.GetAssetPath(artwork.texture));
-            Assert.That(artwork.texture.width, Is.EqualTo(2172));
-            Assert.That(artwork.texture.height, Is.EqualTo(724));
-            Assert.That(artwork.rect, Is.EqualTo(new Rect(100f, 154f, 1970f, 445f)));
-            Assert.That(artwork.rect.width / artwork.rect.height, Is.EqualTo(1970f / 445f).Within(0.001f));
-            Assert.That(artwork.texture.wrapMode, Is.EqualTo(TextureWrapMode.Clamp));
-            Assert.That(artwork.texture.mipmapCount, Is.EqualTo(1));
+                "/ConveyorAnimationAtlas.png",
+                AssetDatabase.GetAssetPath(animation.Atlas));
+            Assert.That(animation.Atlas.width, Is.EqualTo(ConveyorArtworkLibrary.AtlasWidth));
+            Assert.That(animation.Atlas.height, Is.EqualTo(ConveyorArtworkLibrary.AtlasHeight));
+            Assert.That(animation.Atlas.wrapMode, Is.EqualTo(TextureWrapMode.Clamp));
+            Assert.That(animation.Atlas.mipmapCount, Is.EqualTo(1));
+            Assert.That(animation.Atlas.isReadable, Is.False);
+            Assert.That(
+                animation.FrameGeometrySprite.rect,
+                Is.EqualTo(new Rect(
+                    ConveyorArtworkLibrary.AtlasPadding,
+                    ConveyorArtworkLibrary.AtlasHeight -
+                    ConveyorArtworkLibrary.AtlasCellHeight +
+                    ConveyorArtworkLibrary.AtlasPadding,
+                    ConveyorArtworkLibrary.AnimationFrameWidth,
+                    ConveyorArtworkLibrary.AnimationFrameHeight)));
+            Assert.That(animation.FrameCount, Is.EqualTo(192));
+            Assert.That(animation.Columns, Is.EqualTo(8));
+            Assert.That(animation.Rows, Is.EqualTo(24));
+            Assert.That(animation.Padding, Is.EqualTo(4));
+            Assert.That(
+                animation.Material.shader.name,
+                Is.EqualTo("Marble Sort/Conveyor Animation Atlas"));
 
-            Assert.That(ConveyorArtworkLibrary.TryGetBeltLoop(out Texture2D beltLoop), Is.True);
-            Assert.That(beltLoop, Is.Not.Null);
-            StringAssert.EndsWith(
-                "/ConveyorApprovedBeltLoop.png",
-                AssetDatabase.GetAssetPath(beltLoop));
-            Assert.That(beltLoop.width, Is.EqualTo(1920));
-            Assert.That(beltLoop.height, Is.EqualTo(128));
-            Assert.That(beltLoop.wrapMode, Is.EqualTo(TextureWrapMode.Repeat));
-            Assert.That(beltLoop.mipmapCount, Is.EqualTo(1));
+            TextureImporter importer = (TextureImporter)AssetImporter.GetAtPath(
+                AssetDatabase.GetAssetPath(animation.Atlas));
+            Assert.That(importer, Is.Not.Null);
+            Assert.That(importer.isReadable, Is.False);
+            Assert.That(importer.mipmapEnabled, Is.False);
+            Assert.That(importer.maxTextureSize, Is.EqualTo(8192));
+            Assert.That(
+                importer.textureCompression,
+                Is.EqualTo(TextureImporterCompression.CompressedHQ));
 
-            Assert.That(ConveyorArtworkLibrary.TryGetAnimation(out Sprite[] frames), Is.True);
+            TextureImporterPlatformSettings ios =
+                importer.GetPlatformTextureSettings("iPhone");
+            Assert.That(ios.overridden, Is.True);
+            Assert.That(ios.maxTextureSize, Is.EqualTo(8192));
+            Assert.That(ios.format, Is.EqualTo(TextureImporterFormat.ASTC_5x5));
             Assert.That(
-                frames.Length,
-                Is.EqualTo(ConveyorArtworkLibrary.ExpectedAnimationFrameCount));
+                ios.textureCompression,
+                Is.EqualTo(TextureImporterCompression.CompressedHQ));
+
+            TextureImporterPlatformSettings android =
+                importer.GetPlatformTextureSettings("Android");
+            Assert.That(android.overridden, Is.False);
+            Assert.That(android.maxTextureSize, Is.EqualTo(8192));
+
             Assert.That(
-                frames[0].texture.width,
-                Is.EqualTo(ConveyorArtworkLibrary.AnimationFrameWidth));
+                Resources.LoadAll<Texture2D>("Presentation/Conveyor/Animation").Length,
+                Is.Zero,
+                "Individual conveyor frames must remain outside Resources and the player build.");
+
             Assert.That(
-                frames[0].texture.height,
-                Is.EqualTo(ConveyorArtworkLibrary.AnimationFrameHeight));
-            Assert.That(frames[0].texture, Is.Not.SameAs(frames[24].texture));
-            Assert.That(frames[0].texture.wrapMode, Is.EqualTo(TextureWrapMode.Clamp));
-            Assert.That(frames[0].texture.mipmapCount, Is.EqualTo(1));
+                ConveyorArtworkLibrary.TryGetAnimation(out ConveyorAnimationAsset cached),
+                Is.True);
+            Assert.That(cached, Is.SameAs(animation));
         }
     }
 }

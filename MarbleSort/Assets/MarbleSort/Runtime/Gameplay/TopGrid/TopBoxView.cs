@@ -12,6 +12,15 @@ namespace MarbleSort.Gameplay.TopGrid
         public const float ExposedRestingScale = 0.95f;
         public const float ClosedRestingScale = 0.965f;
 
+        private const string BoardFullMessage = "Board Full";
+        private const float BoardFullFeedbackDuration = 0.9f;
+        private static readonly Vector3 BoardFullFeedbackPosition =
+            new Vector3(0f, 0.02f, -0.68f);
+        private static readonly Color BoardFullTextColor =
+            new Color(1f, 0.98f, 0.91f, 1f);
+        private static readonly Color BoardFullShadowColor =
+            new Color(0.12f, 0.075f, 0.22f, 0.88f);
+
         private readonly Transform[] marbleMarkers = new Transform[MarbleReleasePattern.MarbleCount];
         private Collider inputCollider;
         private GameObject hiddenTrayRoot;
@@ -20,11 +29,15 @@ namespace MarbleSort.Gameplay.TopGrid
         private GameObject markerRoot;
         private SpriteRenderer bakedTrayRenderer;
         private Sprite[] bakedOccupancyFrames;
+        private GameObject boardFullFeedbackRoot;
+        private TextMesh boardFullText;
+        private TextMesh boardFullShadow;
         private Material ballMaterial;
         private bool exposed;
         private bool interactionEnabled;
         private float targetScale = 1f;
         private float currentScale = 1f;
+        private float boardFullFeedbackElapsed;
         private bool disappearing;
 
         // The top-grid root is presented at 1.18 scale. Cancel that parent scale so the
@@ -36,6 +49,8 @@ namespace MarbleSort.Gameplay.TopGrid
         public string BoxId { get; private set; } = string.Empty;
 
         public string ColorId { get; private set; } = string.Empty;
+
+        public bool IsMystery { get; private set; }
 
         public bool TrayVisible => trayContentRoot != null && trayContentRoot.activeSelf;
 
@@ -49,6 +64,13 @@ namespace MarbleSort.Gameplay.TopGrid
             : hiddenTrayRoot.GetComponent<SpriteRenderer>()?.sprite?.name ?? string.Empty;
 
         public Material BallMaterial => ballMaterial;
+
+        public bool BoardFullFeedbackVisible =>
+            boardFullFeedbackRoot != null && boardFullFeedbackRoot.activeSelf;
+
+        public string BoardFullFeedbackText => boardFullText == null
+            ? string.Empty
+            : boardFullText.text;
 
         public int CurrentBakedRemainingCount { get; private set; } =
             MarbleReleasePattern.MarbleCount;
@@ -70,10 +92,15 @@ namespace MarbleSort.Gameplay.TopGrid
             }
         }
 
-        public void Configure(string boxId, string colorId, Material material)
+        public void Configure(
+            string boxId,
+            string colorId,
+            Material material,
+            bool isMystery = false)
         {
             BoxId = boxId;
             ColorId = MarblePalette.Normalize(colorId);
+            IsMystery = isMystery;
             name = $"Top Box - {BoxId}";
             ballMaterial = PresentationMaterialLibrary.GetGlossyBall(material);
 
@@ -95,14 +122,20 @@ namespace MarbleSort.Gameplay.TopGrid
             inputCollider.isTrigger = true;
             shell.GetComponent<Renderer>().enabled = false;
 
-            if (!HiddenTopTrayArtworkLibrary.TryGet(ColorId, out Sprite hiddenArtwork))
+            Sprite hiddenArtwork;
+            bool hiddenArtworkLoaded = IsMystery
+                ? MysteryTopTrayArtworkLibrary.TryGet(out hiddenArtwork)
+                : HiddenTopTrayArtworkLibrary.TryGet(ColorId, out hiddenArtwork);
+            if (!hiddenArtworkLoaded)
             {
                 throw new InvalidOperationException(
-                    $"Hidden top-tray artwork is unavailable for color '{ColorId}'.");
+                    IsMystery
+                        ? "Approved mystery top-tray artwork is unavailable."
+                        : $"Hidden top-tray artwork is unavailable for color '{ColorId}'.");
             }
 
             hiddenTrayRoot = CreateSpriteVisual(
-                "Approved Thin Hidden Tray",
+                IsMystery ? "Approved Mystery Tray" : "Approved Thin Hidden Tray",
                 transform,
                 hiddenArtwork,
                 new Vector3(0f, 0f, -0.31f),
@@ -165,6 +198,7 @@ namespace MarbleSort.Gameplay.TopGrid
                 marker.GetComponent<SpriteRenderer>().enabled = false;
             }
 
+            CreateBoardFullFeedback();
             SetExposed(false);
             SetInteractionEnabled(false);
         }
@@ -179,6 +213,11 @@ namespace MarbleSort.Gameplay.TopGrid
             targetScale = exposed ? ExposedRestingScale : ClosedRestingScale;
             currentScale = targetScale;
             ApplyPresentationScale(currentScale);
+            if (!exposed)
+            {
+                HideBoardFullFeedback();
+            }
+
             RefreshCollider();
         }
 
@@ -190,9 +229,22 @@ namespace MarbleSort.Gameplay.TopGrid
 
         public void BeginRelease()
         {
+            HideBoardFullFeedback();
             interactionEnabled = false;
             targetScale = 1.1f;
             RefreshCollider();
+        }
+
+        public void ShowBoardFullFeedback()
+        {
+            if (!exposed || disappearing || boardFullFeedbackRoot == null)
+            {
+                return;
+            }
+
+            boardFullFeedbackElapsed = 0f;
+            boardFullFeedbackRoot.SetActive(true);
+            ApplyBoardFullFeedbackPresentation(0f);
         }
 
         public Vector3 GetReleaseWorldPosition(int index)
@@ -329,6 +381,55 @@ namespace MarbleSort.Gameplay.TopGrid
             return shadow;
         }
 
+        private void CreateBoardFullFeedback()
+        {
+            boardFullFeedbackRoot = new GameObject("Board Full Feedback");
+            boardFullFeedbackRoot.transform.SetParent(transform, false);
+            boardFullFeedbackRoot.transform.localPosition = BoardFullFeedbackPosition;
+
+            boardFullShadow = CreateBoardFullText(
+                "Board Full Text Shadow",
+                boardFullFeedbackRoot.transform,
+                new Vector3(0.012f, -0.012f, 0.01f),
+                BoardFullShadowColor,
+                59);
+            boardFullText = CreateBoardFullText(
+                "Board Full Text",
+                boardFullFeedbackRoot.transform,
+                Vector3.zero,
+                BoardFullTextColor,
+                60);
+            boardFullFeedbackRoot.SetActive(false);
+        }
+
+        private static TextMesh CreateBoardFullText(
+            string objectName,
+            Transform parent,
+            Vector3 localPosition,
+            Color color,
+            int sortingOrder)
+        {
+            GameObject textObject = new GameObject(objectName);
+            textObject.transform.SetParent(parent, false);
+            textObject.transform.localPosition = localPosition;
+
+            TextMesh textMesh = textObject.AddComponent<TextMesh>();
+            textMesh.text = BoardFullMessage;
+            textMesh.anchor = TextAnchor.MiddleCenter;
+            textMesh.alignment = TextAlignment.Center;
+            textMesh.fontSize = 64;
+            textMesh.fontStyle = FontStyle.Bold;
+            textMesh.characterSize = 0.09f;
+            textMesh.color = color;
+            textMesh.richText = false;
+
+            MeshRenderer renderer = textObject.GetComponent<MeshRenderer>();
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            renderer.sortingOrder = sortingOrder;
+            return textMesh;
+        }
+
         private void RefreshCollider()
         {
             if (inputCollider != null)
@@ -339,6 +440,8 @@ namespace MarbleSort.Gameplay.TopGrid
 
         private void Update()
         {
+            UpdateBoardFullFeedback();
+
             if (disappearing)
             {
                 return;
@@ -356,6 +459,53 @@ namespace MarbleSort.Gameplay.TopGrid
             if (!interactionEnabled && targetScale > 1.05f && currentScale >= targetScale - 0.001f)
             {
                 targetScale = 1f;
+            }
+        }
+
+        private void UpdateBoardFullFeedback()
+        {
+            if (!BoardFullFeedbackVisible)
+            {
+                return;
+            }
+
+            boardFullFeedbackElapsed += Time.unscaledDeltaTime;
+            float normalized = Mathf.Clamp01(
+                boardFullFeedbackElapsed / BoardFullFeedbackDuration);
+            ApplyBoardFullFeedbackPresentation(normalized);
+            if (normalized >= 1f)
+            {
+                HideBoardFullFeedback();
+            }
+        }
+
+        private void ApplyBoardFullFeedbackPresentation(float normalized)
+        {
+            float popProgress = Mathf.Clamp01(normalized / 0.18f);
+            float popScale = Mathf.LerpUnclamped(
+                0.78f,
+                1f,
+                1f - Mathf.Pow(1f - popProgress, 3f));
+            boardFullFeedbackRoot.transform.localScale = Vector3.one * popScale;
+            boardFullFeedbackRoot.transform.localPosition =
+                BoardFullFeedbackPosition + (Vector3.up * (0.055f * normalized));
+
+            float alpha = 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.68f, 1f, normalized));
+            Color textColor = BoardFullTextColor;
+            textColor.a *= alpha;
+            boardFullText.color = textColor;
+
+            Color shadowColor = BoardFullShadowColor;
+            shadowColor.a *= alpha;
+            boardFullShadow.color = shadowColor;
+        }
+
+        private void HideBoardFullFeedback()
+        {
+            boardFullFeedbackElapsed = 0f;
+            if (boardFullFeedbackRoot != null)
+            {
+                boardFullFeedbackRoot.SetActive(false);
             }
         }
 

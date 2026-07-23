@@ -1,4 +1,5 @@
 using MarbleSort.Gameplay.Flow;
+using MarbleSort.Gameplay.Conveyor;
 using UnityEngine;
 
 namespace MarbleSort.UI
@@ -10,9 +11,48 @@ namespace MarbleSort.UI
         private const float ReferenceHeight = 1280f;
         private const float HudPlateWidth = 853f;
         private const float HudPlateHeight = 377f;
-        private const int DefaultCoinBalance = 575;
+        private const float HudScaleFactor = 0.88f;
+        private const float HudVisualTop = 48f;
+        private const float HudSafePadding = 14f;
+        private const int DefaultCoinBalance = 0;
+        private const string PremiumTopHudResourcePath =
+            "Presentation/UI/Approved/PremiumTopHudPlateAqua";
+        private const string CompletionCardResourcePrefix =
+            "Presentation/UI/Completion/MarbleStarCompletion";
+        private const string MysteryBoxCardResourcePath =
+            "Presentation/UI/Completion/MysteryBoxCompletion";
+        private const string LossCardResourcePath =
+            "Presentation/UI/Completion/ConveyorFullLossCard";
+        private const int CompletionStageCount = 5;
+        private const float CompletionFillAnimationDuration = 1.15f;
+        private const float CompletionCardMaxWidth = 600f;
+        private const float CompletionCardMaxHeight = 932f;
+        private const float CompletionCardCenterY = 644f;
+        private const float CompletionTrackNormalizedX = 0.132f;
+        private const float CompletionTrackNormalizedY = 0.602f;
+        private const float CompletionTrackNormalizedWidth = 0.736f;
+        private const float CompletionTrackNormalizedHeight = 0.069f;
+        private const float ButtonPressScale = 0.965f;
+        private const float ButtonReleaseBounceScale = 0.045f;
+        private const float ButtonReleaseDuration = 0.24f;
+        private const float ContinueActionDelay = 0.14f;
 
-        private static readonly int[] UnlockLevels = { 6, 8, 11 };
+        private static readonly Rect SettingsButtonHitRect =
+            new Rect(27f, 48f, 130f, 136f);
+        private static readonly Rect SettingsButtonVisualRect =
+            new Rect(20f, 42f, 144f, 150f);
+        private static readonly Rect ContinueButtonNormalizedVisualRect =
+            new Rect(0.16f, 0.81f, 0.68f, 0.13f);
+        private static readonly Rect MysteryContinueButtonNormalizedVisualRect =
+            new Rect(0.175f, 0.815f, 0.65f, 0.14f);
+        private static readonly Rect MysteryContinueButtonNormalizedHitRect =
+            new Rect(0.20f, 0.835f, 0.60f, 0.095f);
+        private static readonly Rect LossSnapshotNormalizedRect =
+            new Rect(0.11f, 0.305f, 0.78f, 0.325f);
+        private static readonly Rect LossRetryButtonNormalizedVisualRect =
+            new Rect(0.16f, 0.82f, 0.68f, 0.125f);
+        private static readonly Rect LossRetryButtonNormalizedHitRect =
+            new Rect(0.19f, 0.84f, 0.62f, 0.085f);
 
         [SerializeField] private LevelFlowController levelFlow;
 
@@ -23,13 +63,12 @@ namespace MarbleSort.UI
         private GUIStyle subStatusStyle;
         private GUIStyle actionButtonStyle;
         private GUIStyle iconButtonStyle;
-        private GUIStyle hintStyle;
         private GUIStyle panelStyle;
         private GUIStyle overlayPanelStyle;
         private GUIStyle shadowPanelStyle;
-        private GUIStyle hintPanelStyle;
         private GUIStyle unlockPanelStyle;
         private GUIStyle settingsLabelStyle;
+        private GUIStyle completionPercentStyle;
         private GUIStyle toggleButtonStyle;
         private GUIStyle toggleOffButtonStyle;
         private GUIStyle transparentButtonStyle;
@@ -38,33 +77,50 @@ namespace MarbleSort.UI
         private Texture2D overlayPanelTexture;
         private Texture2D goldButtonTexture;
         private Texture2D shadowTexture;
-        private Texture2D hintPanelTexture;
         private Texture2D unlockPanelTexture;
         private Texture2D toggleOnTexture;
         private Texture2D toggleOffTexture;
         private Texture2D gearTexture;
         private Texture2D lockTexture;
-        private Texture2D coinTexture;
+        private Texture2D completionTrackTexture;
+        private Texture2D completionFillTexture;
         private Texture2D premiumTopHudPlate;
+        private Texture2D mysteryBoxCard;
+        private Texture2D lossCard;
+        private Texture2D lossConveyorSnapshot;
+        private readonly Texture2D[] completionCards = new Texture2D[CompletionStageCount];
 
         private string levelName = "Level 1";
         private string statusTitle = string.Empty;
         private string statusSubtitle = string.Empty;
         private bool overlayVisible;
         private bool retryVisible;
-        private bool hintVisible;
+        private bool completionVisible;
+        private bool mysteryBoxVisible;
+        private bool showMysteryBoxAfterContinue;
         private bool settingsVisible;
-        private bool coinPanelVisible;
         private bool hapticsEnabled = true;
+        private int coinBalance = DefaultCoinBalance;
         private float overlayAlpha;
-        private float hintAlpha;
         private float previousTimeScale = 1f;
+        private float completionAnimationElapsed;
+        private float completionStartPercent;
+        private float completionTargetPercent;
+        private float completionDisplayedPercent;
+        private bool settingsButtonHeld;
+        private bool continueButtonHeld;
+        private bool continueActionPending;
+        private float settingsButtonPressAmount;
+        private float continueButtonPressAmount;
+        private float settingsButtonReleaseTime;
+        private float continueButtonReleaseTime;
+        private float continueActionTimer;
 
         public bool OverlayVisible => overlayVisible;
 
         public bool RetryVisible => retryVisible;
 
-        public bool HintVisible => hintVisible;
+        public bool HintVisible => false;
 
         public bool SettingsVisible => settingsVisible;
 
@@ -72,21 +128,69 @@ namespace MarbleSort.UI
 
         public bool TrayCounterVisible => false;
 
-        public int CoinBalance => DefaultCoinBalance;
+        public int CoinBalance => coinBalance;
 
-        public int UnlockCardCount => UnlockLevels.Length;
+        public int UnlockCardCount => 0;
+
+        public bool LevelIndicatorInteractive => false;
 
         public bool PremiumHudArtworkLoaded => premiumTopHudPlate != null;
+
+        public bool CompletionArtworkLoaded
+        {
+            get
+            {
+                for (int index = 0; index < completionCards.Length; index++)
+                {
+                    if (completionCards[index] == null)
+                    {
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+        }
+
+        public bool CompletionVisible => completionVisible;
+
+        public bool MysteryBoxVisible => mysteryBoxVisible;
+
+        public bool MysteryBoxArtworkLoaded => mysteryBoxCard != null;
+
+        public bool LossArtworkLoaded => lossCard != null;
+
+        public bool LossSnapshotAvailable => lossConveyorSnapshot != null;
+
+        public int CompletionRewardStage { get; private set; }
+
+        public int CompletionRewardPercent => CompletionRewardStage * 20;
+
+        public float CompletionDisplayedPercent => completionDisplayedPercent;
+
+        public int CompletionCoinReward { get; private set; }
 
         public int CompletedTrayCount { get; private set; }
 
         public int TotalTrayCount { get; private set; }
 
-        public float LastSafeTopOffset { get; private set; }
+        public float LastHudScale { get; private set; }
+
+        public float LastHudTopOffset { get; private set; }
+
+        public float LastHudVisualTop => LastHudTopOffset + (HudVisualTop * LastHudScale);
 
         private void Awake()
         {
-            premiumTopHudPlate = Resources.Load<Texture2D>("Presentation/UI/PremiumTopHudPlate");
+            premiumTopHudPlate = Resources.Load<Texture2D>(PremiumTopHudResourcePath);
+            mysteryBoxCard = Resources.Load<Texture2D>(MysteryBoxCardResourcePath);
+            lossCard = Resources.Load<Texture2D>(LossCardResourcePath);
+            for (int index = 0; index < completionCards.Length; index++)
+            {
+                int percent = (index + 1) * 20;
+                completionCards[index] = Resources.Load<Texture2D>(
+                    CompletionCardResourcePrefix + percent);
+            }
         }
 
         public void Configure(LevelFlowController flow)
@@ -97,19 +201,17 @@ namespace MarbleSort.UI
         public void ShowPlaying(
             string displayName,
             int completedTrayCount,
-            int totalTrayCount,
-            bool showHint)
+            int totalTrayCount)
         {
             SetSettingsVisible(false);
-            coinPanelVisible = false;
             levelName = displayName;
             overlayVisible = false;
             retryVisible = false;
-            hintVisible = showHint;
-            if (!showHint)
-            {
-                hintAlpha = 0f;
-            }
+            completionVisible = false;
+            mysteryBoxVisible = false;
+            showMysteryBoxAfterContinue = false;
+            ResetContinueButtonState();
+            ReleaseLossSnapshot();
             SetProgress(completedTrayCount, totalTrayCount);
         }
 
@@ -119,31 +221,117 @@ namespace MarbleSort.UI
             CompletedTrayCount = Mathf.Clamp(completedTrayCount, 0, TotalTrayCount);
         }
 
-        public void HideHint()
+        public void SetCoinBalance(int balance)
         {
-            hintVisible = false;
+            coinBalance = Mathf.Max(0, balance);
+        }
+
+        public void AddCoins(int amount)
+        {
+            if (amount <= 0)
+            {
+                return;
+            }
+
+            coinBalance = coinBalance > int.MaxValue - amount
+                ? int.MaxValue
+                : coinBalance + amount;
         }
 
         public void ShowComplete(string displayName)
         {
+            ShowComplete(displayName, 2, LevelFlowController.CompletionCoinReward);
+        }
+
+        public void ShowComplete(string displayName, int rewardStage, int coinReward)
+        {
+            ShowComplete(displayName, rewardStage, coinReward, false);
+        }
+
+        public void ShowComplete(
+            string displayName,
+            int rewardStage,
+            int coinReward,
+            bool showMysteryAfterContinue)
+        {
             SetSettingsVisible(false);
-            coinPanelVisible = false;
             levelName = displayName;
-            statusTitle = "LEVEL COMPLETE!";
-            statusSubtitle = "Great sorting — next level starting";
+            float previousPercent = CompletionRewardPercent;
+            CompletionRewardStage = Mathf.Clamp(rewardStage, 1, CompletionStageCount);
+            completionTargetPercent = CompletionRewardPercent;
+            completionStartPercent = previousPercent >= completionTargetPercent
+                ? 0f
+                : previousPercent;
+            completionDisplayedPercent = completionStartPercent;
+            completionAnimationElapsed = 0f;
+            CompletionCoinReward = Mathf.Max(0, coinReward);
+            continueActionPending = false;
+            continueButtonHeld = false;
+            continueButtonPressAmount = 0f;
+            continueButtonReleaseTime = 0f;
             overlayVisible = true;
             retryVisible = false;
+            completionVisible = true;
+            mysteryBoxVisible = false;
+            showMysteryBoxAfterContinue = showMysteryAfterContinue;
         }
 
         public void ShowDeadlocked(string displayName)
         {
+            ShowDeadlocked(displayName, null);
+        }
+
+        public void ShowDeadlocked(
+            string displayName,
+            StadiumConveyorController conveyorSource)
+        {
             SetSettingsVisible(false);
-            coinPanelVisible = false;
             levelName = displayName;
             statusTitle = "NO MORE MOVES";
             statusSubtitle = "The conveyor is full. Reset and try a new order.";
+            CaptureLossConveyorSnapshot(conveyorSource);
+            ResetContinueButtonState();
             overlayVisible = true;
             retryVisible = true;
+            completionVisible = false;
+            mysteryBoxVisible = false;
+            showMysteryBoxAfterContinue = false;
+        }
+
+        public bool ContinueAfterCompletion()
+        {
+            if (levelFlow == null)
+            {
+                return false;
+            }
+
+            if (mysteryBoxVisible)
+            {
+                overlayVisible = false;
+                mysteryBoxVisible = false;
+                levelFlow.AdvanceToNextLevel();
+                return true;
+            }
+
+            if (!completionVisible)
+            {
+                return false;
+            }
+
+            if (showMysteryBoxAfterContinue)
+            {
+                completionVisible = false;
+                mysteryBoxVisible = true;
+                showMysteryBoxAfterContinue = false;
+                AddCoins(LevelFlowController.MysteryBoxCoinReward);
+                ResetContinueButtonState();
+                return true;
+            }
+
+            overlayVisible = false;
+            completionVisible = false;
+            levelFlow.AdvanceToNextLevel();
+            return true;
         }
 
         public void ToggleSettings()
@@ -161,7 +349,6 @@ namespace MarbleSort.UI
             settingsVisible = visible;
             if (visible)
             {
-                coinPanelVisible = false;
                 previousTimeScale = Time.timeScale;
                 Time.timeScale = 0f;
             }
@@ -176,8 +363,55 @@ namespace MarbleSort.UI
             float target = overlayVisible ? 1f : 0f;
             overlayAlpha = Mathf.MoveTowards(overlayAlpha, target, Time.unscaledDeltaTime * 5.5f);
 
-            float hintTarget = hintVisible && !overlayVisible && !settingsVisible ? 1f : 0f;
-            hintAlpha = Mathf.MoveTowards(hintAlpha, hintTarget, Time.unscaledDeltaTime * 5.5f);
+            if (completionVisible && completionDisplayedPercent < completionTargetPercent)
+            {
+                completionAnimationElapsed += Time.unscaledDeltaTime;
+                float progress = Mathf.Clamp01(
+                    completionAnimationElapsed / CompletionFillAnimationDuration);
+                float easedProgress = 1f - Mathf.Pow(1f - progress, 3f);
+                completionDisplayedPercent = Mathf.Lerp(
+                    completionStartPercent,
+                    completionTargetPercent,
+                    easedProgress);
+                if (progress >= 1f)
+                {
+                    completionDisplayedPercent = completionTargetPercent;
+                }
+            }
+
+            float unscaledDelta = Time.unscaledDeltaTime;
+            settingsButtonPressAmount = Mathf.MoveTowards(
+                settingsButtonPressAmount,
+                settingsButtonHeld ? 1f : 0f,
+                unscaledDelta * (settingsButtonHeld ? 14f : 20f));
+            continueButtonPressAmount = Mathf.MoveTowards(
+                continueButtonPressAmount,
+                continueButtonHeld ? 1f : 0f,
+                unscaledDelta * (continueButtonHeld ? 14f : 20f));
+            settingsButtonReleaseTime = Mathf.Max(
+                0f,
+                settingsButtonReleaseTime - unscaledDelta);
+            continueButtonReleaseTime = Mathf.Max(
+                0f,
+                continueButtonReleaseTime - unscaledDelta);
+
+            if (continueActionPending)
+            {
+                continueActionTimer -= unscaledDelta;
+                if (continueActionTimer <= 0f)
+                {
+                    continueActionPending = false;
+                    if (retryVisible)
+                    {
+                        levelFlow?.RetryCurrentLevel();
+                    }
+                    else
+                    {
+                        ContinueAfterCompletion();
+                    }
+                }
+            }
+
         }
 
         private void OnGUI()
@@ -189,36 +423,31 @@ namespace MarbleSort.UI
                 Screen.height / ReferenceHeight));
             float horizontalOffset = (Screen.width - (ReferenceWidth * scale)) * 0.5f;
             float verticalOffset = (Screen.height - (ReferenceHeight * scale)) * 0.5f;
-            Rect safeArea = Screen.safeArea;
-            float safeTopPixels = Screen.height - safeArea.yMax;
-            LastSafeTopOffset = Mathf.Max(0f, (safeTopPixels - verticalOffset) / scale);
-            float topY = Mathf.Max(22f, LastSafeTopOffset + 14f);
-
             Matrix4x4 previousMatrix = GUI.matrix;
             Color previousColor = GUI.color;
 
             DrawPremiumTopHud();
+
+            // Draw completion dimming in physical screen space before entering
+            // the fixed 720x1280 gameplay coordinate system. This covers every
+            // pixel on tall and wide devices instead of leaving undimmed bands.
+            if (!settingsVisible &&
+                (completionVisible || mysteryBoxVisible || retryVisible) &&
+                overlayAlpha > 0.001f)
+            {
+                DrawScreenDimmer((retryVisible ? 0.64f : 0.56f) * overlayAlpha);
+            }
 
             GUI.matrix = Matrix4x4.TRS(
                 new Vector3(horizontalOffset, verticalOffset, 0f),
                 Quaternion.identity,
                 new Vector3(scale, scale, 1f));
 
-            if (hintAlpha > 0.001f)
-            {
-                DrawHint(topY, hintAlpha);
-            }
-
-            if (coinPanelVisible && !settingsVisible && overlayAlpha <= 0.001f)
-            {
-                DrawCoinPanel();
-            }
-
             if (settingsVisible)
             {
                 DrawSettingsPanel();
             }
-            else if (overlayAlpha > 0.001f)
+            else if (overlayVisible && overlayAlpha > 0.001f)
             {
                 DrawGameplayOverlay(overlayAlpha);
             }
@@ -230,8 +459,15 @@ namespace MarbleSort.UI
         private void DrawPremiumTopHud()
         {
             Matrix4x4 previousMatrix = GUI.matrix;
-            float scale = Mathf.Max(0.01f, Screen.width / HudPlateWidth);
-            GUI.matrix = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(scale, scale, 1f));
+            float safeTopPixels = Mathf.Max(0f, Screen.height - Screen.safeArea.yMax);
+            Rect plateRect = CalculateHudPlateRect(Screen.width, safeTopPixels);
+            float scale = plateRect.width / HudPlateWidth;
+            LastHudScale = scale;
+            LastHudTopOffset = plateRect.y;
+            GUI.matrix = Matrix4x4.TRS(
+                new Vector3(plateRect.x, plateRect.y, 0f),
+                Quaternion.identity,
+                new Vector3(scale, scale, 1f));
 
             if (premiumTopHudPlate != null)
             {
@@ -242,47 +478,65 @@ namespace MarbleSort.UI
                     true);
             }
 
-            if (GUI.Button(new Rect(29f, 77f, 111f, 112f), GUIContent.none, transparentButtonStyle))
+            TrackButtonInteraction(
+                SettingsButtonHitRect,
+                ref settingsButtonHeld,
+                ref settingsButtonReleaseTime);
+            DrawAnimatedTextureRegion(
+                premiumTopHudPlate,
+                NormalizeTextureRect(SettingsButtonVisualRect, HudPlateWidth, HudPlateHeight),
+                SettingsButtonVisualRect,
+                settingsButtonPressAmount,
+                settingsButtonReleaseTime,
+                1f);
+            if (GUI.Button(
+                    SettingsButtonHitRect,
+                    GUIContent.none,
+                    transparentButtonStyle))
             {
+                TriggerButtonRelease(
+                    ref settingsButtonHeld,
+                    ref settingsButtonReleaseTime);
                 ToggleSettings();
             }
 
-            DrawOutlinedLabel(new Rect(243f, 80f, 307f, 102f), levelName, levelStyle, 2.5f);
+            // The level capsule is deliberately display-only. Keeping it as a
+            // label prevents it from behaving like a button while preserving
+            // the dynamic level name inside the approved artwork.
+            DrawPremiumHudLabel(
+                new Rect(208f, 55f, 324f, 105f),
+                levelName.ToUpperInvariant(),
+                levelStyle,
+                2.25f);
 
-            if (GUI.Button(new Rect(741f, 85f, 91f, 108f), GUIContent.none, transparentButtonStyle))
-            {
-                coinPanelVisible = !coinPanelVisible;
-            }
+            DrawPremiumHudLabel(
+                new Rect(659f, 59f, 96f, 104f),
+                coinBalance.ToString(),
+                walletStyle,
+                2f);
+
+            // The plus remains part of the approved prototype artwork, but it
+            // deliberately has no action: this prototype has no coin shop UI.
+            GUI.Button(
+                new Rect(746f, 61f, 82f, 108f),
+                GUIContent.none,
+                transparentButtonStyle);
 
             GUI.matrix = previousMatrix;
         }
 
-        private void DrawHint(float topY, float alpha)
+        public static Rect CalculateHudPlateRect(float screenWidth, float safeTopPixels)
         {
-            Color previous = GUI.color;
-            GUI.color = new Color(1f, 1f, 1f, alpha);
-            Rect shadow = new Rect(130f, topY + 208f, 468f, 48f);
-            Rect panel = new Rect(126f, topY + 202f, 468f, 48f);
-            GUI.Box(shadow, GUIContent.none, shadowPanelStyle);
-            GUI.Box(panel, GUIContent.none, hintPanelStyle);
-            GUI.Label(panel, "Tap a dotted box  •  Fill matching trays", hintStyle);
-            GUI.color = previous;
-        }
-
-        private void DrawCoinPanel()
-        {
-            DrawDimmer(0.36f);
-            Rect shadow = new Rect(122f, 447f, 484f, 298f);
-            Rect panel = new Rect(118f, 437f, 484f, 298f);
-            GUI.Box(shadow, GUIContent.none, shadowPanelStyle);
-            GUI.Box(panel, GUIContent.none, overlayPanelStyle);
-            DrawOutlinedLabel(new Rect(154f, 475f, 412f, 62f), "COIN SHOP", statusStyle, 2f);
-            GUI.DrawTexture(new Rect(306f, 545f, 108f, 108f), coinTexture, ScaleMode.ScaleToFit, true);
-            GUI.Label(new Rect(150f, 652f, 420f, 40f), "Prototype preview • 575 coins", subStatusStyle);
-            if (GUI.Button(new Rect(254f, 704f, 212f, 64f), "CLOSE", actionButtonStyle))
-            {
-                coinPanelVisible = false;
-            }
+            float scale = Mathf.Max(
+                0.01f,
+                (Mathf.Max(1f, screenWidth) / HudPlateWidth) * HudScaleFactor);
+            float width = HudPlateWidth * scale;
+            float height = HudPlateHeight * scale;
+            float x = (screenWidth - width) * 0.5f;
+            float y = Mathf.Max(
+                0f,
+                Mathf.Max(0f, safeTopPixels) + HudSafePadding - (HudVisualTop * scale));
+            return new Rect(x, y, width, height);
         }
 
         private void DrawSettingsPanel()
@@ -327,6 +581,24 @@ namespace MarbleSort.UI
 
         private void DrawGameplayOverlay(float alpha)
         {
+            if (mysteryBoxVisible)
+            {
+                DrawMysteryBoxOverlay(alpha);
+                return;
+            }
+
+            if (completionVisible)
+            {
+                DrawCompletionOverlay(alpha);
+                return;
+            }
+
+            if (retryVisible && lossCard != null)
+            {
+                DrawLossOverlay(alpha);
+                return;
+            }
+
             DrawDimmer(0.78f * alpha);
             GUI.color = new Color(1f, 1f, 1f, alpha);
             Rect panelShadow = new Rect(82f, 470f, 564f, 336f);
@@ -347,6 +619,549 @@ namespace MarbleSort.UI
             GUI.color = Color.white;
         }
 
+        private void DrawLossOverlay(float alpha)
+        {
+            Rect cardRect = CalculateCompletionCardRect(lossCard);
+            Color previous = GUI.color;
+            GUI.color = new Color(1f, 1f, 1f, alpha);
+            GUI.DrawTexture(cardRect, lossCard, ScaleMode.StretchToFill, true);
+
+            if (lossConveyorSnapshot != null)
+            {
+                Rect snapshotRect = DenormalizeRect(cardRect, LossSnapshotNormalizedRect);
+                GUI.DrawTexture(
+                    snapshotRect,
+                    lossConveyorSnapshot,
+                    ScaleMode.ScaleToFit,
+                    true);
+            }
+
+            Rect retryRect = DenormalizeRect(
+                cardRect,
+                LossRetryButtonNormalizedHitRect);
+            Rect retryVisualRect = DenormalizeRect(
+                cardRect,
+                LossRetryButtonNormalizedVisualRect);
+            TrackButtonInteraction(
+                retryRect,
+                ref continueButtonHeld,
+                ref continueButtonReleaseTime);
+            DrawAnimatedTextureRegion(
+                lossCard,
+                LossRetryButtonNormalizedVisualRect,
+                retryVisualRect,
+                continueButtonPressAmount,
+                continueButtonReleaseTime,
+                alpha);
+            if (!continueActionPending && alpha > 0.82f && GUI.Button(
+                    retryRect,
+                    GUIContent.none,
+                    transparentButtonStyle))
+            {
+                TriggerButtonRelease(
+                    ref continueButtonHeld,
+                    ref continueButtonReleaseTime);
+                continueActionPending = true;
+                continueActionTimer = ContinueActionDelay;
+            }
+
+            GUI.color = previous;
+        }
+
+        private void CaptureLossConveyorSnapshot(
+            StadiumConveyorController conveyorSource)
+        {
+            ReleaseLossSnapshot();
+            if (conveyorSource == null)
+            {
+                return;
+            }
+
+            Camera gameplayCamera = Camera.main;
+            if (gameplayCamera == null)
+            {
+                gameplayCamera = FindFirstObjectByType<Camera>();
+            }
+
+            if (gameplayCamera == null ||
+                !TryCalculateConveyorViewportBounds(
+                    gameplayCamera,
+                    conveyorSource,
+                    out Rect viewportBounds))
+            {
+                return;
+            }
+
+            int sourceWidth = Mathf.Max(1, Screen.width);
+            int sourceHeight = Mathf.Max(1, Screen.height);
+            int renderWidth = Mathf.Clamp(Mathf.Max(sourceWidth, 720), 720, 1440);
+            int renderHeight = Mathf.Clamp(
+                Mathf.RoundToInt(renderWidth * (sourceHeight / (float)sourceWidth)),
+                720,
+                2560);
+            RenderTexture captureTarget = RenderTexture.GetTemporary(
+                renderWidth,
+                renderHeight,
+                24,
+                RenderTextureFormat.ARGB32,
+                RenderTextureReadWrite.sRGB);
+            RenderTexture previousTarget = gameplayCamera.targetTexture;
+            RenderTexture previousActive = RenderTexture.active;
+
+            try
+            {
+                gameplayCamera.targetTexture = captureTarget;
+                gameplayCamera.Render();
+                RenderTexture.active = captureTarget;
+
+                int x = Mathf.Clamp(
+                    Mathf.FloorToInt(viewportBounds.xMin * renderWidth),
+                    0,
+                    renderWidth - 1);
+                int y = Mathf.Clamp(
+                    Mathf.FloorToInt(viewportBounds.yMin * renderHeight),
+                    0,
+                    renderHeight - 1);
+                int width = Mathf.Clamp(
+                    Mathf.CeilToInt(viewportBounds.width * renderWidth),
+                    1,
+                    renderWidth - x);
+                int height = Mathf.Clamp(
+                    Mathf.CeilToInt(viewportBounds.height * renderHeight),
+                    1,
+                    renderHeight - y);
+
+                Texture2D snapshot = new Texture2D(
+                    width,
+                    height,
+                    TextureFormat.RGBA32,
+                    false)
+                {
+                    name = "Runtime Full Conveyor Snapshot",
+                    filterMode = FilterMode.Bilinear,
+                    wrapMode = TextureWrapMode.Clamp,
+                    hideFlags = HideFlags.HideAndDontSave
+                };
+                snapshot.ReadPixels(new Rect(x, y, width, height), 0, 0, false);
+                snapshot.Apply(false, false);
+                lossConveyorSnapshot = snapshot;
+            }
+            finally
+            {
+                gameplayCamera.targetTexture = previousTarget;
+                RenderTexture.active = previousActive;
+                RenderTexture.ReleaseTemporary(captureTarget);
+            }
+        }
+
+        private static bool TryCalculateConveyorViewportBounds(
+            Camera gameplayCamera,
+            StadiumConveyorController conveyorSource,
+            out Rect viewportBounds)
+        {
+            viewportBounds = default;
+            Renderer[] renderers = conveyorSource.GetComponentsInChildren<Renderer>(false);
+            bool found = false;
+            float minimumX = 1f;
+            float minimumY = 1f;
+            float maximumX = 0f;
+            float maximumY = 0f;
+
+            for (int index = 0; index < renderers.Length; index++)
+            {
+                Renderer renderer = renderers[index];
+                if (renderer == null || !renderer.enabled)
+                {
+                    continue;
+                }
+
+                Bounds bounds = renderer.bounds;
+                Vector3[] corners =
+                {
+                    new Vector3(bounds.min.x, bounds.min.y, bounds.center.z),
+                    new Vector3(bounds.min.x, bounds.max.y, bounds.center.z),
+                    new Vector3(bounds.max.x, bounds.min.y, bounds.center.z),
+                    new Vector3(bounds.max.x, bounds.max.y, bounds.center.z)
+                };
+                for (int cornerIndex = 0; cornerIndex < corners.Length; cornerIndex++)
+                {
+                    Vector3 viewport = gameplayCamera.WorldToViewportPoint(corners[cornerIndex]);
+                    if (viewport.z <= 0f)
+                    {
+                        continue;
+                    }
+
+                    found = true;
+                    minimumX = Mathf.Min(minimumX, viewport.x);
+                    minimumY = Mathf.Min(minimumY, viewport.y);
+                    maximumX = Mathf.Max(maximumX, viewport.x);
+                    maximumY = Mathf.Max(maximumY, viewport.y);
+                }
+            }
+
+            if (!found)
+            {
+                return false;
+            }
+
+            const float horizontalPadding = 0.025f;
+            const float verticalPadding = 0.025f;
+            minimumX = Mathf.Clamp01(minimumX - horizontalPadding);
+            maximumX = Mathf.Clamp01(maximumX + horizontalPadding);
+            minimumY = Mathf.Clamp01(minimumY - verticalPadding);
+            maximumY = Mathf.Clamp01(maximumY + verticalPadding);
+            viewportBounds = Rect.MinMaxRect(
+                minimumX,
+                minimumY,
+                maximumX,
+                maximumY);
+            return viewportBounds.width > 0.001f && viewportBounds.height > 0.001f;
+        }
+
+        private void ReleaseLossSnapshot()
+        {
+            if (lossConveyorSnapshot == null)
+            {
+                return;
+            }
+
+            Destroy(lossConveyorSnapshot);
+            lossConveyorSnapshot = null;
+        }
+
+        private void DrawCompletionOverlay(float alpha)
+        {
+            int cardIndex = Mathf.Clamp(CompletionRewardStage - 1, 0, completionCards.Length - 1);
+            Texture2D card = completionCards[cardIndex];
+            if (card == null)
+            {
+                DrawDimmer(0.18f * alpha);
+                return;
+            }
+
+            Rect cardRect = CalculateCompletionCardRect(card);
+            Color previous = GUI.color;
+            GUI.color = new Color(1f, 1f, 1f, alpha);
+            GUI.DrawTexture(cardRect, card, ScaleMode.StretchToFill, true);
+            // Keep the live progress channel after the count-up finishes. The
+            // approved card supplies the frame and star artwork, while this
+            // single live layer supplies both the animated and final bar. That
+            // prevents an endpoint jump to the differently colored bar baked
+            // into the source card.
+            DrawAnimatedCompletionProgress(cardRect, alpha);
+
+            // The visual button is baked into the approved card. This invisible
+            // hit area is deliberately inset so only the green Continue button
+            // advances the level.
+            Rect continueRect = new Rect(
+                cardRect.x + (cardRect.width * 0.18f),
+                cardRect.y + (cardRect.height * 0.835f),
+                cardRect.width * 0.64f,
+                cardRect.height * 0.105f);
+            Rect continueVisualRect = DenormalizeRect(
+                cardRect,
+                ContinueButtonNormalizedVisualRect);
+            TrackButtonInteraction(
+                continueRect,
+                ref continueButtonHeld,
+                ref continueButtonReleaseTime);
+            DrawAnimatedTextureRegion(
+                card,
+                ContinueButtonNormalizedVisualRect,
+                continueVisualRect,
+                continueButtonPressAmount,
+                continueButtonReleaseTime,
+                alpha);
+            if (!continueActionPending && alpha > 0.82f && GUI.Button(
+                    continueRect,
+                    GUIContent.none,
+                    transparentButtonStyle))
+            {
+                TriggerButtonRelease(
+                    ref continueButtonHeld,
+                    ref continueButtonReleaseTime);
+                continueActionPending = true;
+                continueActionTimer = ContinueActionDelay;
+            }
+
+            GUI.color = previous;
+        }
+
+        private void DrawMysteryBoxOverlay(float alpha)
+        {
+            if (mysteryBoxCard == null)
+            {
+                DrawDimmer(0.18f * alpha);
+                return;
+            }
+
+            Rect cardRect = CalculateCompletionCardRect(mysteryBoxCard);
+            Color previous = GUI.color;
+            GUI.color = new Color(1f, 1f, 1f, alpha);
+            GUI.DrawTexture(cardRect, mysteryBoxCard, ScaleMode.StretchToFill, true);
+
+            Rect continueRect = DenormalizeRect(
+                cardRect,
+                MysteryContinueButtonNormalizedHitRect);
+            Rect continueVisualRect = DenormalizeRect(
+                cardRect,
+                MysteryContinueButtonNormalizedVisualRect);
+            TrackButtonInteraction(
+                continueRect,
+                ref continueButtonHeld,
+                ref continueButtonReleaseTime);
+            DrawAnimatedTextureRegion(
+                mysteryBoxCard,
+                MysteryContinueButtonNormalizedVisualRect,
+                continueVisualRect,
+                continueButtonPressAmount,
+                continueButtonReleaseTime,
+                alpha);
+            if (!continueActionPending && alpha > 0.82f && GUI.Button(
+                    continueRect,
+                    GUIContent.none,
+                    transparentButtonStyle))
+            {
+                TriggerButtonRelease(
+                    ref continueButtonHeld,
+                    ref continueButtonReleaseTime);
+                continueActionPending = true;
+                continueActionTimer = ContinueActionDelay;
+            }
+
+            GUI.color = previous;
+        }
+
+        private void ResetContinueButtonState()
+        {
+            continueActionPending = false;
+            continueButtonHeld = false;
+            continueButtonPressAmount = 0f;
+            continueButtonReleaseTime = 0f;
+            continueActionTimer = 0f;
+        }
+
+        private void DrawAnimatedCompletionProgress(Rect cardRect, float alpha)
+        {
+            // This is the inner navy channel, not the pearlescent outer frame.
+            // Both the track replacement and its fill are restricted to these
+            // authored bounds, so no animated pixel can overlap the frame.
+            Rect trackRect = CalculateCompletionProgressTrackRect(cardRect);
+
+            Color previous = GUI.color;
+            GUI.color = new Color(1f, 1f, 1f, alpha);
+            GUI.DrawTexture(trackRect, completionTrackTexture, ScaleMode.StretchToFill, true);
+
+            float fillFraction = Mathf.Clamp01(completionDisplayedPercent / 100f);
+            if (fillFraction > 0.001f)
+            {
+                Rect clippedRect = CalculateCompletionProgressFillRect(
+                    trackRect,
+                    fillFraction);
+                GUI.BeginGroup(clippedRect);
+                Color fill = CompletionColorForPercent(completionDisplayedPercent);
+                GUI.color = new Color(fill.r, fill.g, fill.b, alpha);
+                GUI.DrawTexture(
+                    new Rect(0f, 0f, trackRect.width, trackRect.height),
+                    completionFillTexture,
+                    ScaleMode.StretchToFill,
+                    true);
+                GUI.EndGroup();
+            }
+
+            GUI.color = new Color(1f, 1f, 1f, alpha);
+            DrawPremiumHudLabel(
+                trackRect,
+                $"{Mathf.RoundToInt(completionDisplayedPercent)}%",
+                completionPercentStyle,
+                1.5f);
+            GUI.color = previous;
+        }
+
+        private static Rect CalculateCompletionCardRect(Texture2D card)
+        {
+            float sourceWidth = Mathf.Max(1f, card != null ? card.width : 1f);
+            float sourceHeight = Mathf.Max(1f, card != null ? card.height : 1f);
+            float aspect = sourceWidth / sourceHeight;
+            float width = CompletionCardMaxWidth;
+            float height = width / aspect;
+            if (height > CompletionCardMaxHeight)
+            {
+                height = CompletionCardMaxHeight;
+                width = height * aspect;
+            }
+
+            return new Rect(
+                (ReferenceWidth - width) * 0.5f,
+                CompletionCardCenterY - (height * 0.5f),
+                width,
+                height);
+        }
+
+        private static Rect NormalizeTextureRect(
+            Rect pixelRect,
+            float textureWidth,
+            float textureHeight)
+        {
+            return new Rect(
+                pixelRect.x / Mathf.Max(1f, textureWidth),
+                pixelRect.y / Mathf.Max(1f, textureHeight),
+                pixelRect.width / Mathf.Max(1f, textureWidth),
+                pixelRect.height / Mathf.Max(1f, textureHeight));
+        }
+
+        private static Rect DenormalizeRect(Rect parent, Rect normalized)
+        {
+            return new Rect(
+                parent.x + (parent.width * normalized.x),
+                parent.y + (parent.height * normalized.y),
+                parent.width * normalized.width,
+                parent.height * normalized.height);
+        }
+
+        private static Rect ScaleAroundCenter(Rect rect, float scale)
+        {
+            Vector2 center = rect.center;
+            Vector2 size = rect.size * Mathf.Max(0.01f, scale);
+            return new Rect(
+                center.x - (size.x * 0.5f),
+                center.y - (size.y * 0.5f),
+                size.x,
+                size.y);
+        }
+
+        private static void TrackButtonInteraction(
+            Rect hitRect,
+            ref bool held,
+            ref float releaseTime)
+        {
+            Event current = Event.current;
+            if (current == null || current.button != 0)
+            {
+                return;
+            }
+
+            if (current.type == EventType.MouseDown && hitRect.Contains(current.mousePosition))
+            {
+                held = true;
+                releaseTime = 0f;
+            }
+            else if (current.rawType == EventType.MouseUp && held)
+            {
+                held = false;
+                releaseTime = ButtonReleaseDuration;
+            }
+        }
+
+        private static void TriggerButtonRelease(
+            ref bool held,
+            ref float releaseTime)
+        {
+            held = false;
+            releaseTime = ButtonReleaseDuration;
+        }
+
+        private static void DrawAnimatedTextureRegion(
+            Texture2D texture,
+            Rect normalizedSourceRect,
+            Rect destinationRect,
+            float pressAmount,
+            float releaseTime,
+            float alpha)
+        {
+            if (texture == null ||
+                (pressAmount <= 0.001f && releaseTime <= 0.001f) ||
+                alpha <= 0.001f)
+            {
+                return;
+            }
+
+            float releaseNormalized = Mathf.Clamp01(
+                releaseTime / ButtonReleaseDuration);
+            float releaseProgress = 1f - releaseNormalized;
+            float bounce = Mathf.Sin(releaseProgress * Mathf.PI) *
+                           releaseNormalized *
+                           ButtonReleaseBounceScale;
+            float pressedScale = Mathf.Lerp(1f, ButtonPressScale, Mathf.Clamp01(pressAmount));
+            Rect animatedRect = ScaleAroundCenter(destinationRect, pressedScale + bounce);
+            Rect uvRect = new Rect(
+                normalizedSourceRect.x,
+                1f - normalizedSourceRect.y - normalizedSourceRect.height,
+                normalizedSourceRect.width,
+                normalizedSourceRect.height);
+
+            Color previous = GUI.color;
+            float pressShade = Mathf.Lerp(1f, 0.88f, Mathf.Clamp01(pressAmount));
+            float releaseHighlight = Mathf.Sin(releaseProgress * Mathf.PI) *
+                                     releaseNormalized * 0.12f;
+            float tint = Mathf.Clamp(pressShade + releaseHighlight, 0f, 1.08f);
+            GUI.color = new Color(tint, tint, tint, alpha);
+            GUI.DrawTextureWithTexCoords(animatedRect, texture, uvRect, true);
+            GUI.color = previous;
+        }
+
+        public static Rect CalculateCompletionProgressTrackRect(Rect cardRect)
+        {
+            return new Rect(
+                cardRect.x + (cardRect.width * CompletionTrackNormalizedX),
+                cardRect.y + (cardRect.height * CompletionTrackNormalizedY),
+                cardRect.width * CompletionTrackNormalizedWidth,
+                cardRect.height * CompletionTrackNormalizedHeight);
+        }
+
+        public static Rect CalculateCompletionProgressFillRect(
+            Rect trackRect,
+            float fillFraction)
+        {
+            return new Rect(
+                trackRect.x,
+                trackRect.y,
+                trackRect.width * Mathf.Clamp01(fillFraction),
+                trackRect.height);
+        }
+
+        private static Color CompletionColorForPercent(float percent)
+        {
+            Color red = new Color32(245, 54, 66, 255);
+            Color blue = new Color32(26, 143, 255, 255);
+            Color green = new Color32(18, 214, 112, 255);
+            Color yellow = new Color32(255, 201, 32, 255);
+            Color violet = new Color32(154, 52, 229, 255);
+
+            if (percent <= 20f)
+            {
+                return red;
+            }
+
+            if (percent <= 40f)
+            {
+                return Color.Lerp(red, blue, Mathf.InverseLerp(20f, 40f, percent));
+            }
+
+            if (percent <= 60f)
+            {
+                return Color.Lerp(blue, green, Mathf.InverseLerp(40f, 60f, percent));
+            }
+
+            if (percent <= 80f)
+            {
+                return Color.Lerp(green, yellow, Mathf.InverseLerp(60f, 80f, percent));
+            }
+
+            return Color.Lerp(yellow, violet, Mathf.InverseLerp(80f, 100f, percent));
+        }
+
+        private static void DrawScreenDimmer(float alpha)
+        {
+            Color previous = GUI.color;
+            GUI.color = new Color(0.025f, 0.035f, 0.095f, alpha);
+            GUI.DrawTexture(
+                new Rect(0f, 0f, Screen.width, Screen.height),
+                Texture2D.whiteTexture,
+                ScaleMode.StretchToFill);
+            GUI.color = previous;
+        }
+
         private static void DrawDimmer(float alpha)
         {
             Color previous = GUI.color;
@@ -363,6 +1178,38 @@ namespace MarbleSort.UI
             Color original = style.normal.textColor;
             style.normal.textColor = new Color32(38, 42, 82, 255);
             GUI.Label(new Rect(rect.x + offset, rect.y + offset, rect.width, rect.height), text, style);
+            style.normal.textColor = original;
+            GUI.Label(rect, text, style);
+        }
+
+        private static void DrawPremiumHudLabel(
+            Rect rect,
+            string text,
+            GUIStyle style,
+            float offset)
+        {
+            Color original = style.normal.textColor;
+            style.normal.textColor = new Color32(23, 58, 104, 255);
+            for (int y = -1; y <= 1; y++)
+            {
+                for (int x = -1; x <= 1; x++)
+                {
+                    if (x == 0 && y == 0)
+                    {
+                        continue;
+                    }
+
+                    GUI.Label(
+                        new Rect(
+                            rect.x + (x * offset),
+                            rect.y + (y * offset),
+                            rect.width,
+                            rect.height),
+                        text,
+                        style);
+                }
+            }
+
             style.normal.textColor = original;
             GUI.Label(rect, text, style);
         }
@@ -402,13 +1249,6 @@ namespace MarbleSort.UI
                 new Color32(31, 43, 96, 225),
                 22f,
                 0f);
-            hintPanelTexture = CreateRoundedGradientTexture(
-                "Premium Hint Panel",
-                new Color32(113, 141, 213, 245),
-                new Color32(66, 87, 154, 245),
-                new Color32(181, 204, 251, 255),
-                18f,
-                3f);
             unlockPanelTexture = CreateRoundedGradientTexture(
                 "Premium Unlock Panel",
                 new Color32(214, 229, 232, 255),
@@ -430,31 +1270,43 @@ namespace MarbleSort.UI
                 new Color32(221, 227, 240, 255),
                 20f,
                 3f);
+            completionTrackTexture = CreateRoundedGradientTexture(
+                "Completion Progress Track",
+                new Color32(17, 55, 101, 255),
+                new Color32(5, 31, 69, 255),
+                new Color32(20, 59, 105, 255),
+                22f,
+                1.5f);
+            completionFillTexture = CreateRoundedGradientTexture(
+                "Completion Progress Fill",
+                new Color32(255, 255, 255, 255),
+                new Color32(194, 194, 194, 255),
+                new Color32(255, 255, 255, 255),
+                22f,
+                1.5f);
 
             gearTexture = CreateOutlinedIconTexture("Settings Gear", IsGearPixel);
             lockTexture = CreateOutlinedIconTexture("Level Lock", IsLockPixel);
-            coinTexture = CreateCoinTexture();
             if (premiumTopHudPlate == null)
             {
-                premiumTopHudPlate = Resources.Load<Texture2D>("Presentation/UI/PremiumTopHudPlate");
+                premiumTopHudPlate = Resources.Load<Texture2D>(PremiumTopHudResourcePath);
             }
 
             RectOffset scalableBorder = new RectOffset(22, 22, 22, 22);
             panelStyle = CreatePanelStyle(lavenderPanelTexture, scalableBorder);
             overlayPanelStyle = CreatePanelStyle(overlayPanelTexture, scalableBorder);
             shadowPanelStyle = CreatePanelStyle(shadowTexture, scalableBorder);
-            hintPanelStyle = CreatePanelStyle(hintPanelTexture, scalableBorder);
             unlockPanelStyle = CreatePanelStyle(unlockPanelTexture, scalableBorder);
 
             levelStyle = CreateTextStyle(44, Color.white, TextAnchor.MiddleCenter);
-            walletStyle = CreateTextStyle(31, Color.white, TextAnchor.MiddleCenter);
+            walletStyle = CreateTextStyle(39, Color.white, TextAnchor.MiddleCenter);
             unlockStyle = CreateTextStyle(20, Color.white, TextAnchor.MiddleCenter);
             statusStyle = CreateTextStyle(41, new Color32(65, 72, 129, 255), TextAnchor.MiddleCenter);
             statusStyle.wordWrap = true;
             subStatusStyle = CreateTextStyle(23, new Color32(82, 104, 151, 255), TextAnchor.UpperCenter);
             subStatusStyle.wordWrap = true;
-            hintStyle = CreateTextStyle(20, Color.white, TextAnchor.MiddleCenter);
             settingsLabelStyle = CreateTextStyle(26, new Color32(65, 77, 134, 255), TextAnchor.MiddleLeft);
+            completionPercentStyle = CreateTextStyle(42, Color.white, TextAnchor.MiddleCenter);
 
             actionButtonStyle = CreateButtonStyle(goldButtonTexture, 27, Color.white);
             iconButtonStyle = CreateButtonStyle(lavenderPanelTexture, 25, Color.white);
@@ -585,45 +1437,6 @@ namespace MarbleSort.UI
             return (body || shackle) && !keyhole;
         }
 
-        private static Texture2D CreateCoinTexture()
-        {
-            const int size = 64;
-            Texture2D texture = CreateTransientTexture("Coin Icon", size);
-            Color[] pixels = new Color[size * size];
-            for (int y = 0; y < size; y++)
-            {
-                for (int x = 0; x < size; x++)
-                {
-                    float nx = ((x + 0.5f) / size) - 0.5f;
-                    float ny = ((y + 0.5f) / size) - 0.5f;
-                    float radius = Mathf.Sqrt((nx * nx) + (ny * ny));
-                    Color color = Color.clear;
-                    if (radius <= 0.42f)
-                    {
-                        if (radius > 0.35f)
-                        {
-                            color = new Color32(224, 126, 25, 255);
-                        }
-                        else if (radius > 0.28f)
-                        {
-                            color = new Color32(255, 196, 48, 255);
-                        }
-                        else
-                        {
-                            float light = Mathf.Clamp01(0.58f + ((ny - nx) * 0.45f));
-                            color = Color.Lerp(new Color32(255, 175, 35, 255), new Color32(255, 242, 125, 255), light);
-                        }
-                    }
-
-                    pixels[(y * size) + x] = color;
-                }
-            }
-
-            texture.SetPixels(pixels);
-            texture.Apply(false, true);
-            return texture;
-        }
-
         private static Texture2D CreateTransientTexture(string name, int size)
         {
             return new Texture2D(size, size, TextureFormat.RGBA32, false)
@@ -649,17 +1462,18 @@ namespace MarbleSort.UI
 
         private void OnDestroy()
         {
+            ReleaseLossSnapshot();
             DestroyTexture(lavenderPanelTexture);
             DestroyTexture(overlayPanelTexture);
             DestroyTexture(goldButtonTexture);
             DestroyTexture(shadowTexture);
-            DestroyTexture(hintPanelTexture);
             DestroyTexture(unlockPanelTexture);
             DestroyTexture(toggleOnTexture);
             DestroyTexture(toggleOffTexture);
             DestroyTexture(gearTexture);
             DestroyTexture(lockTexture);
-            DestroyTexture(coinTexture);
+            DestroyTexture(completionTrackTexture);
+            DestroyTexture(completionFillTexture);
         }
 
         private static void DestroyTexture(Texture2D texture)

@@ -130,6 +130,13 @@ private let frameWidth = 797
 private let frameHeight = 207
 private let frameCount = 192
 private let phasePeriod = 1.0
+private let atlasColumns = 8
+private let atlasRows = 24
+private let atlasPadding = 4
+private let atlasCellWidth = frameWidth + (atlasPadding * 2)
+private let atlasCellHeight = frameHeight + (atlasPadding * 2)
+private let atlasWidth = atlasColumns * atlasCellWidth
+private let atlasHeight = atlasRows * atlasCellHeight
 private let cropRect = CGRect(x: 100, y: 125, width: 1970, height: 445)
 
 // These dimensions match ConveyorArtworkPresenter. The 207-pixel transparent
@@ -198,7 +205,7 @@ private let mechanicalControlPoints: [WorldPoint] = [
     WorldPoint(x: -1.7836, y:  0.4595),
     WorldPoint(x: -2.3796, y:  0.4595),
     WorldPoint(x: -2.9401, y:  0.4288),
-    WorldPoint(x: -3.3048, y: -0.0316),
+    WorldPoint(x: -3.2550, y: -0.0650),
     WorldPoint(x: -2.9490, y: -0.5431),
     WorldPoint(x: -2.3796, y: -0.5738),
     WorldPoint(x: -1.7836, y: -0.5738),
@@ -210,7 +217,7 @@ private let mechanicalControlPoints: [WorldPoint] = [
     WorldPoint(x:  1.7658, y: -0.5738),
     WorldPoint(x:  2.3707, y: -0.5738),
     WorldPoint(x:  2.9312, y: -0.5431),
-    WorldPoint(x:  3.2870, y: -0.0316)
+    WorldPoint(x:  3.2550, y: -0.0650)
 ]
 
 private func loadImage(_ path: String) -> CGImage {
@@ -387,6 +394,7 @@ private func centeredAngle(at index: Int, points: [CGPoint]) -> Double {
 
 private func extractSocket(
     from approved: ImageBuffer,
+    over clean: ImageBuffer,
     center: CGPoint,
     angle: Double
 ) -> SocketPatch {
@@ -410,7 +418,22 @@ private func extractSocket(
 
             let sourceX = center.x + (cosine * localX) - (sine * localY)
             let sourceY = center.y + (sine * localX) + (cosine * localY)
-            patch[x, y] = premultiply(sample(approved, x: sourceX, y: sourceY), opacity: mask)
+            let approvedPixel = sample(approved, x: sourceX, y: sourceY)
+            let cleanPixel = sample(clean, x: sourceX, y: sourceY)
+
+            // The old patch copied a small rounded rectangle of the belt plate
+            // together with every socket. As the socket moved, that plate
+            // fragment appeared as a grey halo. Difference-matte the approved
+            // socket against the untouched clean plate so only the cavity,
+            // bevel, and its intentional contact shadow can move.
+            let averageDifference = (
+                abs(Double(approvedPixel.r) - Double(cleanPixel.r)) +
+                abs(Double(approvedPixel.g) - Double(cleanPixel.g)) +
+                abs(Double(approvedPixel.b) - Double(cleanPixel.b))) / 3.0
+            let artworkMask = smoothstep(5.0, 18.0, averageDifference)
+            let socketMask = mask * artworkMask
+            if socketMask <= 0 { continue }
+            patch[x, y] = premultiply(approvedPixel, opacity: socketMask)
         }
     }
     return SocketPatch(image: patch)
@@ -545,17 +568,68 @@ private func writePNG(_ image: CGImage, to path: String) {
     }
 }
 
-guard CommandLine.arguments.count == 4 else {
+private func copyFrameIntoAtlas(
+    _ frame: ImageBuffer,
+    frameIndex: Int,
+    atlas: inout ImageBuffer
+) {
+    let column = frameIndex % atlasColumns
+    let row = frameIndex / atlasColumns
+    let cellOriginX = column * atlasCellWidth
+    let cellOriginY = row * atlasCellHeight
+
+    // Every cell carries a duplicated-edge gutter. Bilinear filtering and
+    // block compression therefore see the current frame's edge pixels rather
+    // than transparent pixels or a neighbouring animation frame.
+    for cellY in 0..<atlasCellHeight {
+        let sourceY = max(0, min(frameHeight - 1, cellY - atlasPadding))
+        for cellX in 0..<atlasCellWidth {
+            let sourceX = max(0, min(frameWidth - 1, cellX - atlasPadding))
+            atlas[cellOriginX + cellX, cellOriginY + cellY] = frame[sourceX, sourceY]
+        }
+    }
+}
+
+private func validateSocketSequence() {
+    let expectedLightIndices = [0, 4, 5, 6, 10, 11, 12, 16, 17, 18, 22, 23]
+    let actualLightIndices = (0..<mechanicalControlPoints.count).filter(isLightSocket)
+    precondition(
+        actualLightIndices == expectedLightIndices,
+        "Conveyor socket colors must change only sockets 11 and 23 to light.")
+
+    precondition(actualLightIndices.count == 12, "The conveyor must have 12 light sockets.")
+    for index in 0..<mechanicalControlPoints.count {
+        let current = isLightSocket(index)
+        let previous = isLightSocket(index - 1)
+        let previousTwo = isLightSocket(index - 2)
+        let next = isLightSocket(index + 1)
+        let nextTwo = isLightSocket(index + 2)
+        let isThreeSocketRun =
+            (current == previous && current == previousTwo) ||
+            (current == previous && current == next) ||
+            (current == next && current == nextTwo)
+        precondition(
+            isThreeSocketRun,
+            "Every socket must belong to a continuous three-socket color group.")
+    }
+}
+
+guard CommandLine.arguments.count == 5 else {
     fatalError(
         "Usage: bake_clean_conveyor_frames.swift " +
-        "<approved.png> <approved-clean-plate.png> <output-folder>")
+        "<approved.png> <approved-clean-plate.png> " +
+        "<source-frame-output-folder> <runtime-atlas.png>")
 }
 
 let approvedPath = CommandLine.arguments[1]
 let cleanPath = CommandLine.arguments[2]
 let outputFolder = CommandLine.arguments[3]
+let atlasPath = CommandLine.arguments[4]
 try FileManager.default.createDirectory(
     atPath: outputFolder,
+    withIntermediateDirectories: true)
+try FileManager.default.createDirectory(
+    at: URL(fileURLWithPath: atlasPath).deletingLastPathComponent(),
     withIntermediateDirectories: true)
 
 private let approvedCrop = crop(loadImage(approvedPath), to: cropRect)
@@ -568,41 +642,53 @@ private let clean = ImageBuffer(
     image: cleanCrop,
     width: artworkWidth,
     height: artworkHeight)
+// Keep the chassis and center rail pixel-for-pixel identical to the approved
+// clean plate. Reconstructing either rail end from neighbouring belt pixels
+// creates the stationary grey wedges visible beside the center rail.
 private let base = buildApprovedBase(clean: clean).rotated180()
 private func isLightSocket(_ index: Int) -> Bool {
     let wrapped = ((index % 24) + 24) % 24
     return wrapped == 0 ||
         wrapped == 4 || wrapped == 5 || wrapped == 6 ||
-        wrapped == 10 || wrapped == 12 ||
+        wrapped == 10 || wrapped == 11 || wrapped == 12 ||
         wrapped == 16 || wrapped == 17 || wrapped == 18 ||
-        wrapped == 22
+        wrapped == 22 || wrapped == 23
 }
 
 private let darkTopSocketPatch = extractSocket(
     from: approved,
+    over: clean,
     center: approvedSocketCenters[1],
     angle: centeredAngle(at: 1, points: approvedSocketCenters))
 private let lightTopSocketPatch = extractSocket(
     from: approved,
+    over: clean,
     center: approvedSocketCenters[4],
     angle: centeredAngle(at: 4, points: approvedSocketCenters))
 private let darkBottomSocketPatch = extractSocket(
     from: approved,
+    over: clean,
     center: approvedSocketCenters[13],
     angle: centeredAngle(at: 13, points: approvedSocketCenters))
 private let lightBottomSocketPatch = extractSocket(
     from: approved,
+    over: clean,
     center: approvedSocketCenters[16],
     angle: centeredAngle(at: 16, points: approvedSocketCenters))
 
+validateSocketSequence()
+private var atlas = ImageBuffer(width: atlasWidth, height: atlasHeight)
 for index in 0..<frameCount {
     let phase = phasePeriod * Double(index) / Double(frameCount)
     let frame = renderFrame(base: base, phase: phase)
+    copyFrameIntoAtlas(frame, frameIndex: index, atlas: &atlas)
     let filename = String(format: "ConveyorFrame_%03d.png", index)
     writePNG(
         frame.makeImage(),
         to: URL(fileURLWithPath: outputFolder).appendingPathComponent(filename).path)
 }
+
+writePNG(atlas.makeImage(), to: atlasPath)
 
 writePNG(
     base.makeImage(),
@@ -613,5 +699,6 @@ writePNG(
     to: URL(fileURLWithPath: outputFolder)
         .appendingPathComponent("ConveyorApprovedOriginal.png").path)
 print(
-    "Baked \(frameCount) single-layer approved conveyor frames at " +
-    "\(frameWidth)x\(frameHeight), with no background matte or duplicate render layers.")
+    "Baked \(frameCount) corrected conveyor frames at " +
+    "\(frameWidth)x\(frameHeight) with a verified 3-dark/3-light sequence, " +
+    "plus one \(atlasWidth)x\(atlasHeight) padded runtime atlas.")

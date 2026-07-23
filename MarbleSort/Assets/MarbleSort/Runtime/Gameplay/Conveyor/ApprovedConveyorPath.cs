@@ -25,7 +25,7 @@ namespace MarbleSort.Gameplay.Conveyor
             new Vector2(-1.7836f,  0.4595f),
             new Vector2(-2.3796f,  0.4595f),
             new Vector2(-2.9401f,  0.4288f),
-            new Vector2(-3.3048f, -0.0316f),
+            new Vector2(-3.2550f, -0.0650f),
             new Vector2(-2.9490f, -0.5431f),
             new Vector2(-2.3796f, -0.5738f),
             new Vector2(-1.7836f, -0.5738f),
@@ -37,7 +37,7 @@ namespace MarbleSort.Gameplay.Conveyor
             new Vector2( 1.7658f, -0.5738f),
             new Vector2( 2.3707f, -0.5738f),
             new Vector2( 2.9312f, -0.5431f),
-            new Vector2( 3.2870f, -0.0316f)
+            new Vector2( 3.2550f, -0.0650f)
         };
 
         public static StadiumPose Evaluate(float normalizedDistance)

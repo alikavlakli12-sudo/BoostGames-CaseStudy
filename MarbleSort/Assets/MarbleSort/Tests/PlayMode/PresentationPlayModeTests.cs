@@ -41,13 +41,14 @@ namespace MarbleSort.Tests.PlayMode
                 background.transform.localScale.y,
                 Is.GreaterThanOrEqualTo(responsive.CurrentOrthographicSize * 2f));
             Assert.That(hud, Is.Not.Null);
-            Assert.That(hud.HintVisible, Is.True);
+            Assert.That(hud.HintVisible, Is.False);
             Assert.That(hud.CompletedTrayCount, Is.Zero);
             Assert.That(hud.TotalTrayCount, Is.EqualTo(18));
             Assert.That(hud.SettingsButtonVisible, Is.True);
             Assert.That(hud.TrayCounterVisible, Is.False);
-            Assert.That(hud.CoinBalance, Is.EqualTo(575));
-            Assert.That(hud.UnlockCardCount, Is.EqualTo(3));
+            Assert.That(hud.CoinBalance, Is.Zero);
+            Assert.That(hud.UnlockCardCount, Is.Zero);
+            Assert.That(hud.LevelIndicatorInteractive, Is.False);
             Assert.That(hud.PremiumHudArtworkLoaded, Is.True);
             Assert.That(listener, Is.Not.Null);
             Assert.That(performance, Is.Not.Null);
@@ -70,6 +71,14 @@ namespace MarbleSort.Tests.PlayMode
             ChuteBoundaryRig chuteBoundary = Object.FindFirstObjectByType<ChuteBoundaryRig>();
 
             Assert.That(hud, Is.Not.Null);
+            Rect hudRect = GameHudView.CalculateHudPlateRect(720f, 100f);
+            float hudScale = hudRect.width / 853f;
+            Assert.That(hudRect.width, Is.EqualTo(720f * 0.88f).Within(0.01f));
+            Assert.That(hudRect.x, Is.GreaterThan(40f));
+            Assert.That(
+                hudRect.y + (48f * hudScale),
+                Is.EqualTo(114f).Within(0.01f),
+                "The first visible HUD pixel must keep a 14 px gap below the safe-area top.");
             Assert.That(topGrid, Is.Not.Null);
             Assert.That(basinRim, Is.Not.Null);
             Assert.That(conveyor, Is.Not.Null);
@@ -80,7 +89,7 @@ namespace MarbleSort.Tests.PlayMode
             Assert.That(topGrid.transform.localScale.x, Is.EqualTo(1.18f).Within(0.001f));
             Assert.That(topGrid.transform.localScale.z, Is.EqualTo(1f).Within(0.001f));
             Assert.That(basinRim.transform.localPosition.y, Is.EqualTo(1.76f).Within(0.001f));
-            Assert.That(conveyor.transform.localPosition.y, Is.EqualTo(-3.25f).Within(0.001f));
+            Assert.That(conveyor.transform.localPosition.y, Is.EqualTo(-4.015f).Within(0.001f));
             Assert.That(leftEntranceGuide.GetComponent<Renderer>().enabled, Is.False);
             Assert.That(rightEntranceGuide.GetComponent<Renderer>().enabled, Is.False);
             Assert.That(leftEntranceGuide.GetComponent<Collider>().enabled, Is.True);
@@ -191,7 +200,8 @@ namespace MarbleSort.Tests.PlayMode
             Assert.That(hud.CompletedTrayCount, Is.Zero);
             Assert.That(hud.TotalTrayCount, Is.EqualTo(36));
             Assert.That(pool.CreatedCount, Is.EqualTo(createdMarbles));
-            Assert.That(createdMarbles, Is.EqualTo(72));
+            Assert.That(createdMarbles, Is.EqualTo(MarblePool.DefaultInitialCapacity));
+            Assert.That(pool.RuntimeExpansionCount, Is.Zero);
             Assert.That(PresentationMeshFactory.CachedMeshCount, Is.EqualTo(cachedMeshes));
             Assert.That(feedback.BurstParticles, Is.SameAs(particles));
             Assert.That(Object.FindFirstObjectByType<AudioSource>(), Is.SameAs(audio));
@@ -248,6 +258,9 @@ namespace MarbleSort.Tests.PlayMode
             Assert.That(flow.Status, Is.EqualTo(LevelFlowStatus.Deadlocked));
             Assert.That(hud.OverlayVisible, Is.True);
             Assert.That(hud.RetryVisible, Is.True);
+            Assert.That(hud.LossArtworkLoaded, Is.True);
+            Assert.That(hud.LossSnapshotAvailable, Is.True);
+            Assert.That(conveyor.enabled, Is.False);
 
             flow.RetryCurrentLevel();
             yield return null;
@@ -255,6 +268,8 @@ namespace MarbleSort.Tests.PlayMode
             Assert.That(flow.Status, Is.EqualTo(LevelFlowStatus.Playing));
             Assert.That(hud.OverlayVisible, Is.False);
             Assert.That(hud.RetryVisible, Is.False);
+            Assert.That(hud.LossSnapshotAvailable, Is.False);
+            Assert.That(conveyor.enabled, Is.True);
         }
 
         private static void AssertRenderersInsidePortraitFrame(

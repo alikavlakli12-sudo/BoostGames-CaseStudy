@@ -278,6 +278,26 @@ namespace MarbleSort.Tests.EditMode
         }
 
         [Test]
+        public void MarbleCapacityBudget_CoversBoardConveyorAndEveryReceiverTransfer()
+        {
+            const int maximumConcurrentReceiverTransfers = 4;
+            int requiredActors =
+                TopGridController.LooseBoardMarbleCapacity +
+                ApprovedConveyorPath.SlotCount +
+                maximumConcurrentReceiverTransfers;
+
+            Assert.That(TopGridController.LooseBoardMarbleCapacity, Is.EqualTo(36));
+            Assert.That(requiredActors, Is.EqualTo(64));
+            Assert.That(
+                MarblePool.DefaultInitialCapacity,
+                Is.GreaterThanOrEqualTo(requiredActors));
+            Assert.That(
+                MarblePool.DefaultInitialCapacity - requiredActors,
+                Is.EqualTo(8),
+                "The production pool should retain a small hand-off safety margin.");
+        }
+
+        [Test]
         public void MarblePool_ReturnedMarbleIsReusedAndConstrainedToGameplayPlane()
         {
             GameObject poolObject = new GameObject("Marble Pool Test");

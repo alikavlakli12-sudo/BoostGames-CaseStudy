@@ -44,8 +44,24 @@ namespace MarbleSort.Tests.PlayMode
                 artwork.AnimationFrameCount,
                 Is.EqualTo(ConveyorArtworkLibrary.ExpectedAnimationFrameCount));
             Assert.That(artwork.MovingSocketCount, Is.EqualTo(24));
-            Assert.That(artwork.DarkSocketCount, Is.EqualTo(14));
-            Assert.That(artwork.LightSocketCount, Is.EqualTo(10));
+            Assert.That(artwork.DarkSocketCount, Is.EqualTo(12));
+            Assert.That(artwork.LightSocketCount, Is.EqualTo(12));
+            Assert.That(artwork.AnimationAtlas, Is.Not.Null);
+            Assert.That(artwork.AnimationMaterial, Is.Not.Null);
+            Assert.That(
+                artwork.ArtworkRenderer.sprite.texture,
+                Is.SameAs(artwork.AnimationAtlas));
+            Assert.That(
+                artwork.ArtworkRenderer.sharedMaterial,
+                Is.SameAs(artwork.AnimationMaterial));
+            int[] expectedLightSockets = { 0, 4, 5, 6, 10, 11, 12, 16, 17, 18, 22, 23 };
+            for (int index = 0; index < conveyor.SlotCount; index++)
+            {
+                Assert.That(
+                    artwork.IsMovingSocketLight(index),
+                    Is.EqualTo(System.Array.IndexOf(expectedLightSockets, index) >= 0),
+                    $"Socket {index} breaks the continuous 3-dark/3-light sequence.");
+            }
             Assert.That(conveyor.transform.Find("Exact Approved Pre-Rendered Conveyor"), Is.Not.Null);
             Assert.That(conveyor.transform.Find("Exact Approved Animated Conveyor"), Is.Null);
             Assert.That(conveyor.transform.Find("Approved Continuous Moving Conveyor Belt"), Is.Null);
@@ -126,6 +142,8 @@ namespace MarbleSort.Tests.PlayMode
             float startingPhase = conveyor.Phase;
             float startingTextureOffset = artwork.BeltTextureOffset.x;
             int startingAnimationFrame = artwork.CurrentAnimationFrameIndex;
+            Sprite startingSprite = artwork.ArtworkRenderer.sprite;
+            Material startingMaterial = artwork.ArtworkRenderer.sharedMaterial;
             Vector3 startingSocketPosition = artwork.GetMovingSocketWorldPosition(0);
             yield return new WaitForSeconds(0.1f);
 
@@ -139,6 +157,19 @@ namespace MarbleSort.Tests.PlayMode
                 artwork.CurrentAnimationFrameIndex,
                 Is.Not.EqualTo(startingAnimationFrame),
                 "The complete pre-rendered conveyor frames must advance with the mechanical phase.");
+            Assert.That(
+                artwork.ArtworkRenderer.sprite,
+                Is.SameAs(startingSprite),
+                "Atlas playback must not allocate or swap runtime sprites.");
+            Assert.That(
+                artwork.ArtworkRenderer.sharedMaterial,
+                Is.SameAs(startingMaterial),
+                "Atlas playback must reuse one shared material.");
+            MaterialPropertyBlock frameProperties = new MaterialPropertyBlock();
+            artwork.ArtworkRenderer.GetPropertyBlock(frameProperties);
+            Assert.That(
+                frameProperties.GetFloat(Shader.PropertyToID("_FrameIndex")),
+                Is.EqualTo(artwork.CurrentAnimationFrameIndex).Within(0.001f));
             Assert.That(
                 Vector3.Distance(startingSocketPosition, artwork.GetMovingSocketWorldPosition(0)),
                 Is.GreaterThan(0.01f));
@@ -278,8 +309,9 @@ namespace MarbleSort.Tests.PlayMode
             int inspectedLooseMarbles = 0;
             while (Time.realtimeSinceStartup < timeout)
             {
-                // ChuteBoundaryRig performs its final solver-tolerance correction in
-                // LateUpdate. Resume on the next frame after that correction.
+                // UnityTest coroutines resume before LateUpdate in batch mode.
+                // Advance a frame, then apply the same final projection that the
+                // production MarblePool performs in LateUpdate before measuring.
                 yield return null;
 
                 MarbleActor[] marbles = pool.GetComponentsInChildren<MarbleActor>(true);
@@ -292,9 +324,13 @@ namespace MarbleSort.Tests.PlayMode
                         continue;
                     }
 
+                    boundaryRig.ProjectLooseMarbleInsideSolidChute(marble);
                     inspectedLooseMarbles++;
+                    Vector3 physicsPosition = marble.Body == null
+                        ? marble.transform.position
+                        : marble.Body.position;
                     Assert.That(
-                        marble.transform.position.z,
+                        physicsPosition.z,
                         Is.EqualTo(MarblePool.TransitDepth).Within(0.002f),
                         "A marble escaped the solid chute's depth plane.");
 
@@ -303,10 +339,10 @@ namespace MarbleSort.Tests.PlayMode
                          boundaryIndex++)
                     {
                         BoxCollider boundary = solidBoundaries[boundaryIndex];
-                        Vector3 nearest = boundary.ClosestPoint(marble.transform.position);
+                        Vector3 nearest = boundary.ClosestPoint(physicsPosition);
                         float separation = Vector3.Distance(
                             nearest,
-                            marble.transform.position);
+                            physicsPosition);
                         Assert.That(
                             separation,
                             Is.GreaterThanOrEqualTo(

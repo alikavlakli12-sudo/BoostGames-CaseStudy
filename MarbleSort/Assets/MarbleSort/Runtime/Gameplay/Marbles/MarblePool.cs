@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using MarbleSort.Gameplay.Conveyor;
 using MarbleSort.Presentation;
 using UnityEngine;
 
@@ -8,29 +9,62 @@ namespace MarbleSort.Gameplay.Marbles
     [DisallowMultipleComponent]
     public sealed class MarblePool : MonoBehaviour
     {
+        // 36 loose board marbles + 24 conveyor occupants + four receiver
+        // transitions require at most 64 actors. Eight spare actors keep the
+        // production pool tolerant of short hand-off timing overlaps.
+        public const int DefaultInitialCapacity = 72;
         public const float RestingMarbleDiameter = 0.254f;
         public const float ReceiverMarbleDiameter = 0.365f;
         public const float TransitMarbleDiameter = 0.52f;
+        public const float TransitCollisionDiameter = 0.54f;
         public const float ConveyorMarbleDiameter = TransitMarbleDiameter;
         public const float TransitDepth = -0.16f;
         public const float MinimumMarbleSeparation = 0.012f;
-        private const float RenderSeparationBuffer = 0.012f;
+        private const float RenderSeparationBuffer = 0.002f;
 
         [SerializeField] private MarblePalette palette;
-        [SerializeField, Min(1)] private int initialCapacity = 72;
+        [SerializeField, Min(1)] private int initialCapacity = DefaultInitialCapacity;
         [SerializeField, Min(0.05f)] private float marbleDiameter = TransitMarbleDiameter;
         [SerializeField] private float returnBelowY = -8.5f;
 
         private readonly Stack<MarbleActor> available = new Stack<MarbleActor>();
         private readonly List<MarbleActor> active = new List<MarbleActor>();
         private PhysicsMaterial marblePhysicsMaterial;
+        private ChuteBoundaryRig chuteBoundaryRig;
         private bool initialized;
 
         public int ActiveCount => active.Count;
 
         public int AvailableCount => available.Count;
 
+        public int InitialCapacity => initialCapacity;
+
         public int CreatedCount { get; private set; }
+
+        public int RuntimeExpansionCount { get; private set; }
+
+        public int PeakActiveCount { get; private set; }
+
+        public int PeakLooseMarbleCount { get; private set; }
+
+        public int LooseMarbleCount
+        {
+            get
+            {
+                int count = 0;
+                for (int index = 0; index < active.Count; index++)
+                {
+                    MarbleActor marble = active[index];
+                    if (marble != null && marble.IsRented &&
+                        marble.MotionMode == MarbleMotionMode.LoosePhysics)
+                    {
+                        count++;
+                    }
+                }
+
+                return count;
+            }
+        }
 
         public float MarbleDiameter => marbleDiameter;
 
@@ -67,7 +101,10 @@ namespace MarbleSort.Gameplay.Marbles
                 float requiredDistance =
                     ((safeRequestedDiameter + marble.CollisionDiameter) * 0.5f) +
                     MinimumMarbleSeparation;
-                Vector2 offset = marble.transform.position - worldPosition;
+                Vector3 marblePosition = marble.Body != null
+                    ? marble.Body.position
+                    : marble.transform.position;
+                Vector2 offset = marblePosition - worldPosition;
                 if (offset.sqrMagnitude < requiredDistance * requiredDistance)
                 {
                     blocker = marble;
@@ -108,12 +145,24 @@ namespace MarbleSort.Gameplay.Marbles
         {
             Prewarm();
 
-            MarbleActor marble = available.Count > 0 ? available.Pop() : CreateMarble();
+            MarbleActor marble;
+            if (available.Count > 0)
+            {
+                marble = available.Pop();
+            }
+            else
+            {
+                marble = CreateMarble();
+                RuntimeExpansionCount++;
+            }
+
             Material material = palette == null
                 ? null
                 : PresentationMaterialLibrary.GetGlossyBall(palette.GetMaterial(colorId));
             marble.Activate(colorId, material, position, initialVelocity);
             active.Add(marble);
+            PeakActiveCount = Mathf.Max(PeakActiveCount, active.Count);
+            PeakLooseMarbleCount = Mathf.Max(PeakLooseMarbleCount, LooseMarbleCount);
             return marble;
         }
 
@@ -147,16 +196,43 @@ namespace MarbleSort.Gameplay.Marbles
             Prewarm();
         }
 
+        private void Start()
+        {
+            chuteBoundaryRig = FindFirstObjectByType<ChuteBoundaryRig>();
+        }
+
+        private void FixedUpdate()
+        {
+            // The admission cap bounds this pairwise work to 36 loose marbles.
+            // Twelve physics passes plus the render projection below keep dense
+            // piles separated without returning to the former 88-pass budget.
+            ResolveLooseMarbleOverlaps(12);
+        }
+
         private void LateUpdate()
         {
-            ResolveLooseMarbleOverlaps();
+            // Physics owns the simulation. This final projection only removes
+            // sub-frame solver tolerance before rendering. Projecting the same
+            // marbles back inside the solid artwork contour afterward guarantees
+            // that solving a dense pile cannot trade overlap for wall penetration.
+            const int constraintCycles = 8;
+            const int separationPassesPerCycle = 4;
+            for (int cycle = 0; cycle < constraintCycles; cycle++)
+            {
+                ResolveLooseMarbleOverlaps(separationPassesPerCycle);
+                ProjectLooseMarblesInsideSolidChute();
+            }
 
+            LastRenderedMinimumSeparation = MeasureMinimumScreenSeparation();
             for (int index = active.Count - 1; index >= 0; index--)
             {
+                Vector3 position = active[index].Body != null
+                    ? active[index].Body.position
+                    : active[index].transform.position;
                 if (active[index].MotionMode == MarbleMotionMode.LoosePhysics &&
-                    active[index].transform.position.y < returnBelowY)
+                    position.y < returnBelowY)
                 {
-                    LastReturnedBelowBoardPosition = active[index].transform.position;
+                    LastReturnedBelowBoardPosition = position;
                     LastReturnedBelowBoardColorId = active[index].ColorId;
                     ReturnedBelowBoardCount++;
                     ReturnAt(index);
@@ -164,9 +240,26 @@ namespace MarbleSort.Gameplay.Marbles
             }
         }
 
-        private void ResolveLooseMarbleOverlaps()
+        private void ProjectLooseMarblesInsideSolidChute()
         {
-            const int separationPasses = 8;
+            if (chuteBoundaryRig == null)
+            {
+                chuteBoundaryRig = FindFirstObjectByType<ChuteBoundaryRig>();
+            }
+
+            if (chuteBoundaryRig == null)
+            {
+                return;
+            }
+
+            for (int index = 0; index < active.Count; index++)
+            {
+                chuteBoundaryRig.ProjectLooseMarbleInsideSolidChute(active[index]);
+            }
+        }
+
+        private void ResolveLooseMarbleOverlaps(int separationPasses = 24)
+        {
             for (int pass = 0; pass < separationPasses; pass++)
             {
                 bool correctedAny = false;
@@ -193,7 +286,7 @@ namespace MarbleSort.Gameplay.Marbles
                             continue;
                         }
 
-                        Vector3 difference3D = second.transform.position - first.transform.position;
+                        Vector3 difference3D = second.Body.position - first.Body.position;
                         Vector2 difference = new Vector2(difference3D.x, difference3D.y);
                         float requiredDistance =
                             ((first.CollisionDiameter + second.CollisionDiameter) * 0.5f) +
@@ -211,23 +304,8 @@ namespace MarbleSort.Gameplay.Marbles
                         float correction = requiredDistance - distance;
                         if (moveFirst && moveSecond)
                         {
-                            float verticalDifference =
-                                second.transform.position.y - first.transform.position.y;
-                            if (verticalDifference > 0.015f)
-                            {
-                                // Move only the lower ball down and away. Splitting the
-                                // correction would push the upper ball back toward the tray.
-                                MoveLooseMarble(first, -direction * correction);
-                            }
-                            else if (verticalDifference < -0.015f)
-                            {
-                                MoveLooseMarble(second, direction * correction);
-                            }
-                            else
-                            {
-                                MoveLooseMarble(first, -direction * (correction * 0.5f));
-                                MoveLooseMarble(second, direction * (correction * 0.5f));
-                            }
+                            MoveLooseMarble(first, -direction * (correction * 0.5f));
+                            MoveLooseMarble(second, direction * (correction * 0.5f));
                         }
                         else if (moveFirst)
                         {
@@ -248,7 +326,6 @@ namespace MarbleSort.Gameplay.Marbles
                 }
             }
 
-            LastRenderedMinimumSeparation = MeasureMinimumScreenSeparation();
         }
 
         private float MeasureMinimumScreenSeparation()
@@ -270,7 +347,13 @@ namespace MarbleSort.Gameplay.Marbles
                         continue;
                     }
 
-                    Vector3 difference = second.transform.position - first.transform.position;
+                    if (first.MotionMode != MarbleMotionMode.LoosePhysics &&
+                        second.MotionMode != MarbleMotionMode.LoosePhysics)
+                    {
+                        continue;
+                    }
+
+                    Vector3 difference = second.Body.position - first.Body.position;
                     float distance = new Vector2(difference.x, difference.y).magnitude;
                     minimum = Mathf.Min(minimum, distance);
                 }
@@ -308,7 +391,6 @@ namespace MarbleSort.Gameplay.Marbles
             position.y += correction.y;
             position.z = TransitDepth;
             marble.Body.position = position;
-            marble.transform.position = position;
 
             if (correction.sqrMagnitude <= Mathf.Epsilon)
             {
@@ -342,9 +424,9 @@ namespace MarbleSort.Gameplay.Marbles
             body.constraints = RigidbodyConstraints.FreezePositionZ |
                                RigidbodyConstraints.FreezeRotationX |
                                RigidbodyConstraints.FreezeRotationY;
-            body.solverIterations = 16;
-            body.solverVelocityIterations = 8;
-            body.maxDepenetrationVelocity = 10f;
+            body.solverIterations = 24;
+            body.solverVelocityIterations = 12;
+            body.maxDepenetrationVelocity = 12f;
 
             SphereCollider sphere = marbleObject.GetComponent<SphereCollider>();
             sphere.radius = 0.5f;

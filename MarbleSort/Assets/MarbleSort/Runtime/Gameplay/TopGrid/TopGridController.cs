@@ -12,6 +12,7 @@ namespace MarbleSort.Gameplay.TopGrid
     public sealed class TopGridController : MonoBehaviour
     {
         public const int MarblesPerBox = MarbleReleasePattern.MarbleCount;
+        public const int LooseBoardMarbleCapacity = 36;
 
         // Marker rows are indexed top-to-bottom. Empty the tray from the chute-facing
         // bottom row upward so the release reads naturally and never looks random.
@@ -32,7 +33,8 @@ namespace MarbleSort.Gameplay.TopGrid
         private TopGridState state;
         private TrayFormationBackplate formationBackplate;
         private ClearedTraySpotLayer traySpotLayer;
-        private bool inputLocked;
+        private int activeReleaseCount;
+        private int reservedLooseMarbleCount;
 
         public event Action<string, string, int> MarblesReleased;
 
@@ -42,9 +44,26 @@ namespace MarbleSort.Gameplay.TopGrid
 
         public event Action<string, string, Vector3> BoxSelected;
 
+        public event Action AllTraysSelected;
+
         public TopGridState State => state;
 
-        public bool InputLocked => inputLocked;
+        // Kept for compatibility with existing diagnostics. Tray input is no
+        // longer globally locked while another tray is releasing.
+        public bool InputLocked => false;
+
+        public int ActiveReleaseCount => activeReleaseCount;
+
+        public int ReservedLooseMarbleCount => reservedLooseMarbleCount;
+
+        public int ProjectedLooseMarbleCount =>
+            (marblePool == null ? 0 : marblePool.LooseMarbleCount) +
+            reservedLooseMarbleCount;
+
+        public bool HasCapacityForTrayRelease =>
+            ProjectedLooseMarbleCount + MarblesPerBox <= LooseBoardMarbleCapacity;
+
+        public int BoardFullRejectionCount { get; private set; }
 
         public int GeneratedBoxCount => views.Count;
 
@@ -97,18 +116,20 @@ namespace MarbleSort.Gameplay.TopGrid
 
                 TopBoxView view = viewObject.AddComponent<TopBoxView>();
                 Material material = palette == null ? null : palette.GetMaterial(box.ColorId);
-                view.Configure(box.Id, box.ColorId, material);
+                view.Configure(box.Id, box.ColorId, material, box.IsMystery);
                 views.Add(box.Id, view);
             }
 
-            inputLocked = false;
+            activeReleaseCount = 0;
+            reservedLooseMarbleCount = 0;
+            BoardFullRejectionCount = 0;
             RefreshExposure();
             return true;
         }
 
         public bool TrySelectBox(string boxId)
         {
-            if (inputLocked || state == null || marblePool == null || !state.CanSelect(boxId))
+            if (state == null || marblePool == null || !state.CanSelect(boxId))
             {
                 return false;
             }
@@ -118,10 +139,41 @@ namespace MarbleSort.Gameplay.TopGrid
                 return false;
             }
 
-            inputLocked = true;
-            RefreshExposure();
+            // Reserve all nine positions before changing tray state. Concurrent
+            // release coroutines therefore cannot collectively exceed the loose
+            // board budget, even before their first marble has spawned.
+            if (!HasCapacityForTrayRelease)
+            {
+                BoardFullRejectionCount++;
+                view.ShowBoardFullFeedback();
+                return false;
+            }
+
+            reservedLooseMarbleCount += MarblesPerBox;
+
+            // Claim the tray immediately. Its balls and disappearance continue
+            // asynchronously, but the board can expose and accept the next tray
+            // on this same input beat. State removal also prevents a second tap
+            // from starting another release for this tray.
+            if (!state.TryRemoveExposed(boxId, out TopBoxRemovalResult removal))
+            {
+                reservedLooseMarbleCount = Mathf.Max(
+                    0,
+                    reservedLooseMarbleCount - MarblesPerBox);
+                return false;
+            }
+
+            view.BeginRelease();
+            activeReleaseCount++;
             BoxSelected?.Invoke(view.BoxId, view.ColorId, view.transform.position);
-            StartCoroutine(ReleaseAndReveal(view));
+            RefreshExposure();
+            StartCoroutine(ReleaseAndReveal(view, removal));
+
+            if (state.ActiveCount == 0)
+            {
+                AllTraysSelected?.Invoke();
+            }
+
             return true;
         }
 
@@ -143,11 +195,28 @@ namespace MarbleSort.Gameplay.TopGrid
 
         private void Update()
         {
-            if (inputLocked || inputCamera == null || !TryGetPointerDown(out Vector2 screenPosition))
+            if (inputCamera == null)
             {
                 return;
             }
 
+            for (int touchIndex = 0; touchIndex < Input.touchCount; touchIndex++)
+            {
+                Touch touch = Input.GetTouch(touchIndex);
+                if (touch.phase == TouchPhase.Began)
+                {
+                    TrySelectAtScreenPosition(touch.position);
+                }
+            }
+
+            if (Input.GetMouseButtonDown(0))
+            {
+                TrySelectAtScreenPosition(Input.mousePosition);
+            }
+        }
+
+        private void TrySelectAtScreenPosition(Vector2 screenPosition)
+        {
             Ray ray = inputCamera.ScreenPointToRay(screenPosition);
             if (!Physics.Raycast(
                     ray,
@@ -166,9 +235,8 @@ namespace MarbleSort.Gameplay.TopGrid
             }
         }
 
-        private IEnumerator ReleaseAndReveal(TopBoxView view)
+        private IEnumerator ReleaseAndReveal(TopBoxView view, TopBoxRemovalResult removal)
         {
-            view.BeginRelease();
             WaitForSeconds releaseWait = releaseInterval > 0f ? new WaitForSeconds(releaseInterval) : null;
 
             for (int releaseIndex = 0; releaseIndex < MarblesPerBox; releaseIndex++)
@@ -184,6 +252,7 @@ namespace MarbleSort.Gameplay.TopGrid
                     -ReleaseDownwardSpeed,
                     0f);
                 marblePool.Rent(view.ColorId, releasePosition, velocity);
+                reservedLooseMarbleCount = Mathf.Max(0, reservedLooseMarbleCount - 1);
                 view.ConsumeMarker(markerIndex);
                 MarbleReleased?.Invoke(view.BoxId, markerIndex);
 
@@ -199,21 +268,13 @@ namespace MarbleSort.Gameplay.TopGrid
 
             yield return view.AnimateDisappearance(disappearDuration);
 
-            if (!state.TryRemoveExposed(view.BoxId, out TopBoxRemovalResult result))
-            {
-                Debug.LogError($"Top box '{view.BoxId}' became invalid during release.", this);
-                inputLocked = false;
-                RefreshExposure();
-                yield break;
-            }
-
             MarblesReleased?.Invoke(view.BoxId, view.ColorId, MarblesPerBox);
-            traySpotLayer?.RevealSpot(result.RemovedBox.Id);
+            traySpotLayer?.RevealSpot(removal.RemovedBox.Id);
             views.Remove(view.BoxId);
             Destroy(view.gameObject);
 
-            BoxRemoved?.Invoke(result.RemovedBox.Id);
-            inputLocked = false;
+            BoxRemoved?.Invoke(removal.RemovedBox.Id);
+            activeReleaseCount = Mathf.Max(0, activeReleaseCount - 1);
             RefreshExposure();
         }
 
@@ -221,7 +282,7 @@ namespace MarbleSort.Gameplay.TopGrid
         {
             while (!marblePool.HasClearance(
                        releasePosition,
-                       MarblePool.TransitMarbleDiameter))
+                       MarblePool.TransitCollisionDiameter))
             {
                 yield return new WaitForFixedUpdate();
             }
@@ -252,12 +313,16 @@ namespace MarbleSort.Gameplay.TopGrid
                 }
 
                 view.SetExposed(state.IsExposed(box.Id));
-                view.SetInteractionEnabled(!inputLocked);
+                view.SetInteractionEnabled(true);
             }
         }
 
         private void ClearViews()
         {
+            StopAllCoroutines();
+            activeReleaseCount = 0;
+            reservedLooseMarbleCount = 0;
+
             foreach (TopBoxView view in views.Values)
             {
                 if (view == null)
@@ -317,28 +382,6 @@ namespace MarbleSort.Gameplay.TopGrid
             {
                 DestroyImmediate(spotLayerObject);
             }
-        }
-
-        private static bool TryGetPointerDown(out Vector2 screenPosition)
-        {
-            if (Input.touchCount > 0)
-            {
-                Touch touch = Input.GetTouch(0);
-                if (touch.phase == TouchPhase.Began)
-                {
-                    screenPosition = touch.position;
-                    return true;
-                }
-            }
-
-            if (Input.GetMouseButtonDown(0))
-            {
-                screenPosition = Input.mousePosition;
-                return true;
-            }
-
-            screenPosition = default;
-            return false;
         }
 
         private void OnValidate()

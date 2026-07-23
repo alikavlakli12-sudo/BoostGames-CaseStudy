@@ -120,7 +120,8 @@ private let variants = [
     ColorVariant(name: "Green", targetHue: 0.285, saturationScale: 1.0, valueScale: 1.0, preserveGreen: true),
     ColorVariant(name: "Blue", targetHue: 0.625, saturationScale: 1.20, valueScale: 1.05, preserveGreen: false),
     ColorVariant(name: "Orange", targetHue: 0.070, saturationScale: 1.18, valueScale: 1.08, preserveGreen: false),
-    ColorVariant(name: "Yellow", targetHue: 0.145, saturationScale: 1.00, valueScale: 1.16, preserveGreen: false)
+    ColorVariant(name: "Yellow", targetHue: 0.145, saturationScale: 1.00, valueScale: 1.16, preserveGreen: false),
+    ColorVariant(name: "Pink", targetHue: 0.925, saturationScale: 1.10, valueScale: 1.08, preserveGreen: false)
 ]
 
 private let sourceSize = 1254
@@ -602,5 +603,5 @@ for variant in variants {
 }
 
 print(
-    "Baked 40 approved 3x3 tray occupancy frames at " +
+    "Baked 50 approved 3x3 tray occupancy frames at " +
     "\(outputWidth)x\(outputHeight), with one transparent pre-rendered layer per state.")

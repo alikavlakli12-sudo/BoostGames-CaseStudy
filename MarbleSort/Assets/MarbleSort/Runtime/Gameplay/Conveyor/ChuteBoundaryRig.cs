@@ -373,7 +373,7 @@ namespace MarbleSort.Gameplay.Conveyor
             return collider;
         }
 
-        private void LateUpdate()
+        private void FixedUpdate()
         {
             if (pooledMarbles == null)
             {
@@ -389,29 +389,59 @@ namespace MarbleSort.Gameplay.Conveyor
                     continue;
                 }
 
-                // A shallow molded slope should keep rolling under gravity. Unity
-                // may otherwise put a slow sphere to sleep while it is touching two
-                // neighboring contour segments at their shared point.
-                marble.Body?.WakeUp();
-                ResolveBasinSideContact(marble);
-                ResolveSurfaceContacts(marble, leftSurfaceColliders, true);
-                ResolveSurfaceContacts(marble, rightSurfaceColliders, false);
-                ResolveAdmissionFloorContact(marble);
-                ResolveBoundaryPenetration(marble);
+                ResolveLooseMarbleContacts(marble, true);
             }
+        }
+
+        public void ProjectLooseMarbleInsideSolidChute(MarbleActor marble)
+        {
+            ResolveLooseMarbleContacts(marble, false);
+        }
+
+        private void ResolveLooseMarbleContacts(
+            MarbleActor marble,
+            bool applyDownhillAcceleration)
+        {
+            if (marble == null || !marble.IsRented ||
+                marble.MotionMode != MarbleMotionMode.LoosePhysics)
+            {
+                return;
+            }
+
+            // A shallow molded slope should keep rolling under gravity. Unity
+            // may otherwise put a slow sphere to sleep while it is touching two
+            // neighboring contour segments at their shared point.
+            marble.Body?.WakeUp();
+            ResolveBasinSideContact(marble);
+            ResolveSurfaceContacts(
+                marble,
+                leftSurfaceColliders,
+                true,
+                applyDownhillAcceleration);
+            ResolveSurfaceContacts(
+                marble,
+                rightSurfaceColliders,
+                false,
+                applyDownhillAcceleration);
+            ResolveAdmissionFloorContact(marble);
+            ResolveBoundaryPenetration(marble);
         }
 
         private static void ResolveSurfaceContacts(
             MarbleActor marble,
             List<BoxCollider> surfaces,
-            bool leftSide)
+            bool leftSide,
+            bool applyDownhillAcceleration)
         {
             for (int index = 0; index < surfaces.Count; index++)
             {
                 ResolveFunnelSurfaceContact(marble, surfaces[index]);
             }
 
-            ApplyNaturalDownhillAcceleration(marble, surfaces, leftSide);
+            if (applyDownhillAcceleration)
+            {
+                ApplyNaturalDownhillAcceleration(marble, surfaces, leftSide);
+            }
         }
 
         private static void ApplyNaturalDownhillAcceleration(
@@ -518,7 +548,6 @@ namespace MarbleSort.Gameplay.Conveyor
             Vector3 position = body.position + correction;
             position.z = MarblePool.TransitDepth;
             body.position = position;
-            marble.transform.position = position;
 
             Vector3 velocity = body.linearVelocity;
             float inwardSpeed = Vector3.Dot(velocity, correctionDirection);
@@ -574,7 +603,6 @@ namespace MarbleSort.Gameplay.Conveyor
 
             position.z = MarblePool.TransitDepth;
             body.position = position;
-            marble.transform.position = position;
 
             Vector3 velocity = body.linearVelocity;
             if (velocity.x * correctionDirection < 0f)
@@ -611,7 +639,6 @@ namespace MarbleSort.Gameplay.Conveyor
             position.y = restingCenterY;
             position.z = MarblePool.TransitDepth;
             body.position = position;
-            marble.transform.position = position;
 
             Vector3 velocity = body.linearVelocity;
             if (velocity.y < 0f)
@@ -643,8 +670,8 @@ namespace MarbleSort.Gameplay.Conveyor
                     if (boundary == null || !boundary.enabled ||
                         !Physics.ComputePenetration(
                             sphere,
-                            marble.transform.position,
-                            marble.transform.rotation,
+                            body.position,
+                            body.rotation,
                             boundary,
                             boundary.transform.position,
                             boundary.transform.rotation,
@@ -668,7 +695,6 @@ namespace MarbleSort.Gameplay.Conveyor
 
                     position.z = MarblePool.TransitDepth;
                     body.position = position;
-                    marble.transform.position = position;
 
                     Vector3 velocity = body.linearVelocity;
                     float inwardSpeed = Vector3.Dot(velocity, direction);

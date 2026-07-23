@@ -4,13 +4,15 @@ using UnityEngine;
 namespace MarbleSort.Presentation
 {
     /// <summary>
-    /// Displays the exact approved conveyor through one pre-rendered sprite sequence.
+    /// Displays the exact approved conveyor through one GPU atlas.
     /// The existing StadiumConveyorController remains the sole owner of movement,
     /// slot occupancy, marble anchors, and gameplay timing.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class ConveyorArtworkPresenter : MonoBehaviour
     {
+        private static readonly int FrameIndexProperty = Shader.PropertyToID("_FrameIndex");
+
         [SerializeField, Min(0.01f)] private float targetWidth = 7.09f;
         [SerializeField, Min(0.01f)] private float targetHeight = 1.84f;
         [SerializeField, Min(0.01f)] private float movingSocketWidth = 0.41f;
@@ -20,8 +22,9 @@ namespace MarbleSort.Presentation
 
         private StadiumConveyorController conveyor;
         private Transform[] slotRoots;
-        private Sprite[] animationFrames;
+        private ConveyorAnimationAsset animationAsset;
         private SpriteRenderer artworkRenderer;
+        private MaterialPropertyBlock materialProperties;
         private int currentAnimationFrameIndex = -1;
         private int darkSocketCount;
         private int lightSocketCount;
@@ -37,7 +40,11 @@ namespace MarbleSort.Presentation
                 0f)
             : Vector2.zero;
 
-        public int AnimationFrameCount => animationFrames?.Length ?? 0;
+        public int AnimationFrameCount => animationAsset?.FrameCount ?? 0;
+
+        public Texture2D AnimationAtlas => animationAsset?.Atlas;
+
+        public Material AnimationMaterial => animationAsset?.Material;
 
         public int CurrentAnimationFrameIndex => currentAnimationFrameIndex;
 
@@ -75,6 +82,12 @@ namespace MarbleSort.Presentation
             return Mathf.Abs(tangent.y);
         }
 
+        public bool IsMovingSocketLight(int index)
+        {
+            ValidateSocketIndex(index);
+            return IsLightSocket(index);
+        }
+
         private void Awake()
         {
             ApplyArtwork();
@@ -85,7 +98,7 @@ namespace MarbleSort.Presentation
             RemoveObsoleteVisualComponents();
             conveyor = GetComponent<StadiumConveyorController>();
             if (conveyor == null ||
-                !ConveyorArtworkLibrary.TryGetAnimation(out animationFrames))
+                !ConveyorArtworkLibrary.TryGetAnimation(out animationAsset))
             {
                 Debug.LogError(
                     "The clean approved conveyor animation could not be loaded.",
@@ -98,13 +111,16 @@ namespace MarbleSort.Presentation
             visual.transform.localPosition = localPosition;
 
             artworkRenderer = visual.AddComponent<SpriteRenderer>();
-            artworkRenderer.sprite = animationFrames[0];
+            artworkRenderer.sprite = animationAsset.FrameGeometrySprite;
+            artworkRenderer.sharedMaterial = animationAsset.Material;
             artworkRenderer.color = Color.white;
             artworkRenderer.sortingOrder = sortingOrder;
             ScaleLayerUniformlyToWidth(
                 visual.transform,
-                animationFrames[0],
+                animationAsset.FrameGeometrySprite,
                 targetWidth);
+
+            materialProperties = new MaterialPropertyBlock();
 
             CacheMechanicalSlots();
             UpdateAnimationFrame();
@@ -153,8 +169,8 @@ namespace MarbleSort.Presentation
 
         private void UpdateAnimationFrame()
         {
-            if (artworkRenderer == null || animationFrames == null ||
-                animationFrames.Length == 0 || conveyor == null)
+            if (artworkRenderer == null || animationAsset == null ||
+                animationAsset.FrameCount == 0 || conveyor == null)
             {
                 return;
             }
@@ -163,15 +179,16 @@ namespace MarbleSort.Presentation
                 conveyor.Phase,
                 ConveyorArtworkLibrary.AnimationPhasePeriod) /
                 ConveyorArtworkLibrary.AnimationPhasePeriod;
-            int frameIndex = Mathf.FloorToInt(normalizedFrame * animationFrames.Length) %
-                             animationFrames.Length;
+            int frameIndex = Mathf.FloorToInt(normalizedFrame * animationAsset.FrameCount) %
+                             animationAsset.FrameCount;
             if (frameIndex == currentAnimationFrameIndex)
             {
                 return;
             }
 
             currentAnimationFrameIndex = frameIndex;
-            artworkRenderer.sprite = animationFrames[frameIndex];
+            materialProperties.SetFloat(FrameIndexProperty, frameIndex);
+            artworkRenderer.SetPropertyBlock(materialProperties);
         }
 
         private void ValidateSocketIndex(int index)
@@ -196,12 +213,8 @@ namespace MarbleSort.Presentation
 
         private static bool IsLightSocket(int index)
         {
-            int sequenceIndex = Mathf.Abs(index) % 24;
-            return sequenceIndex == 0 ||
-                   sequenceIndex == 4 || sequenceIndex == 5 || sequenceIndex == 6 ||
-                   sequenceIndex == 10 || sequenceIndex == 12 ||
-                   sequenceIndex == 16 || sequenceIndex == 17 || sequenceIndex == 18 ||
-                   sequenceIndex == 22;
+            int sequenceIndex = ((index % 6) + 6) % 6;
+            return sequenceIndex == 0 || sequenceIndex == 4 || sequenceIndex == 5;
         }
 
         private void OnValidate()

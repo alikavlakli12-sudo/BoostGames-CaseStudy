@@ -18,9 +18,9 @@ namespace MarbleSort.Tests.EditMode
         public void ProductionLevels_FollowTheApprovedDifficultyCurve()
         {
             LevelCatalogData catalog = LoadProductionCatalog();
-            int[] expectedTopBoxCounts = { 6, 6, 9, 12, 8 };
+            int[] expectedTopBoxCounts = { 6, 6, 9, 12, 10 };
             int[] expectedVisibleBoxCounts = { 4, 2, 3, 4, 4 };
-            int[] expectedColorCounts = { 2, 3, 4, 4, 4 };
+            int[] expectedColorCounts = { 2, 3, 4, 4, 5 };
             int[] expectedMaximumDepths = { 2, 3, 4, 3, 3 };
 
             Assert.That(catalog.levels.Length, Is.EqualTo(expectedTopBoxCounts.Length));
@@ -44,6 +44,118 @@ namespace MarbleSort.Tests.EditMode
                     Is.EqualTo(expectedMaximumDepths[levelIndex]),
                     $"Unexpected stack depth in {level.displayName}.");
             }
+        }
+
+        [Test]
+        public void LevelFive_UsesApprovedMysteryFormationAndDedicatedPinkTray()
+        {
+            LevelData level = LoadProductionCatalog().levels[4];
+            int firstRowVisible = 0;
+            int middleMysteries = 0;
+            int topMysteries = 0;
+            int totalMysteries = 0;
+            int pinkCount = 0;
+
+            for (int index = 0; index < level.topGrid.boxes.Length; index++)
+            {
+                TopBoxData box = level.topGrid.boxes[index];
+                if (box.row == 0)
+                {
+                    firstRowVisible++;
+                    Assert.That(box.mystery, Is.False, box.id);
+                }
+
+                if (box.mystery)
+                {
+                    totalMysteries++;
+                    if (box.row == 1) middleMysteries++;
+                    if (box.row == 2) topMysteries++;
+                }
+
+                if (string.Equals(box.color, "pink", StringComparison.OrdinalIgnoreCase))
+                {
+                    pinkCount++;
+                    Assert.That(box.mystery, Is.True);
+                    Assert.That(box.row, Is.EqualTo(2));
+                }
+            }
+
+            Assert.That(firstRowVisible, Is.EqualTo(4));
+            Assert.That(middleMysteries, Is.EqualTo(4));
+            Assert.That(topMysteries, Is.EqualTo(2));
+            Assert.That(totalMysteries, Is.EqualTo(6));
+            Assert.That(pinkCount, Is.EqualTo(1));
+            AssertFormation(
+                level,
+                "0x0", "1x0", "2x0", "3x0",
+                "0x1", "1x1", "2x1", "3x1",
+                "1x2", "2x2");
+        }
+
+        [Test]
+        public void LevelFive_ReceiverQueuesAreInterleavedAndPreserveColorDemand()
+        {
+            LevelData level = LoadProductionCatalog().levels[4];
+            Dictionary<string, int> actualCounts =
+                new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, int> expectedCounts =
+                new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+                {
+                    { "blue", 9 },
+                    { "green", 6 },
+                    { "orange", 6 },
+                    { "yellow", 6 },
+                    { "pink", 3 }
+                };
+            string[] expectedFrontColors = { "blue", "green", "orange", "yellow" };
+
+            Assert.That(level.receiverLanes.Length, Is.EqualTo(4));
+            int totalReceiverCount = 0;
+            for (int laneIndex = 0; laneIndex < level.receiverLanes.Length; laneIndex++)
+            {
+                ReceiverLaneData lane = level.receiverLanes[laneIndex];
+                Assert.That(lane.boxes, Is.Not.Empty, lane.id);
+                Assert.That(
+                    lane.boxes[0].color,
+                    Is.EqualTo(expectedFrontColors[laneIndex]).IgnoreCase,
+                    $"{lane.id} should retain its readable starting receiver color.");
+
+                string previousColor = string.Empty;
+                for (int boxIndex = 0; boxIndex < lane.boxes.Length; boxIndex++)
+                {
+                    string color = lane.boxes[boxIndex].color.Trim().ToLowerInvariant();
+                    Assert.That(
+                        color,
+                        Is.Not.EqualTo(previousColor),
+                        $"{lane.id} groups adjacent '{color}' receivers at positions " +
+                        $"{boxIndex} and {boxIndex + 1}.");
+
+                    actualCounts[color] = actualCounts.TryGetValue(color, out int count)
+                        ? count + 1
+                        : 1;
+                    previousColor = color;
+                    totalReceiverCount++;
+                }
+            }
+
+            Assert.That(totalReceiverCount, Is.EqualTo(30));
+            Assert.That(actualCounts.Count, Is.EqualTo(expectedCounts.Count));
+            foreach (KeyValuePair<string, int> expected in expectedCounts)
+            {
+                Assert.That(
+                    actualCounts.TryGetValue(expected.Key, out int actual),
+                    Is.True,
+                    $"Level 5 is missing '{expected.Key}' receivers.");
+                Assert.That(actual, Is.EqualTo(expected.Value), expected.Key);
+            }
+
+            LevelSolvabilityResult solution = LevelSolvabilityAnalyzer.Analyze(level, 24);
+            Assert.That(solution.IsSolvable, Is.True, solution.Message);
+            Assert.That(solution.SelectionSequence.Count, Is.EqualTo(10));
+            Assert.That(solution.PeakConveyorOccupancy, Is.InRange(1, 24));
+            TestContext.Out.WriteLine(
+                $"Level 5 mixed receiver solution: {solution.Message} " +
+                $"Sequence: {string.Join(" -> ", solution.SelectionSequence)}");
         }
 
         [Test]

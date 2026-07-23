@@ -13,6 +13,7 @@ namespace MarbleSort.Gameplay.TopGrid
             Column = data.column;
             InitialRow = data.row;
             CurrentRow = data.row;
+            IsMystery = data.mystery;
         }
 
         public string Id { get; }
@@ -24,6 +25,8 @@ namespace MarbleSort.Gameplay.TopGrid
         public int InitialRow { get; }
 
         public int CurrentRow { get; internal set; }
+
+        public bool IsMystery { get; }
 
         public bool IsRemoved { get; internal set; }
     }

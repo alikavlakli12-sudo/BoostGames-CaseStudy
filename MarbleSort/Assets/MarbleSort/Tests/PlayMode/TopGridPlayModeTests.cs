@@ -4,6 +4,7 @@ using MarbleSort.Data;
 using MarbleSort.Gameplay.Flow;
 using MarbleSort.Gameplay.Marbles;
 using MarbleSort.Gameplay.TopGrid;
+using MarbleSort.Presentation;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -199,7 +200,10 @@ namespace MarbleSort.Tests.PlayMode
 
             float releaseStartedAt = Time.time;
             Assert.That(grid.TrySelectBox("l01_top_yellow_01"), Is.True);
-            Assert.That(grid.TrySelectBox("l01_top_blue_01"), Is.False, "Input must lock during release.");
+            Assert.That(
+                grid.InputLocked,
+                Is.False,
+                "Starting a release must not globally lock the remaining exposed trays.");
 
             yield return WaitForReleaseWithoutOverlap(grid, pool);
             yield return new WaitForSeconds(0.2f);
@@ -245,9 +249,180 @@ namespace MarbleSort.Tests.PlayMode
                 Is.EqualTo(Vector3.one * MarblePool.TransitMarbleDiameter));
             Assert.That(
                 activeMarble.GetComponent<SphereCollider>().bounds.size.x,
-                Is.EqualTo(MarblePool.TransitMarbleDiameter).Within(0.002f));
+                Is.EqualTo(MarblePool.TransitCollisionDiameter).Within(0.002f),
+                "The released ball needs a slightly oversized solid shell so dense piles never visually compress.");
             Assert.That(activeMarble.GetComponent<Renderer>().sharedMaterial.GetFloat("_Glossiness"),
                 Is.EqualTo(0.72f).Within(0.001f));
+        }
+
+        [UnityTest]
+        public IEnumerator MainScene_BoardCapacityBlocksFifthConcurrentTrayAndRecoversWithoutPoolGrowth()
+        {
+            SceneManager.LoadScene("Main", LoadSceneMode.Single);
+            yield return null;
+
+            TopGridController grid = Object.FindFirstObjectByType<TopGridController>();
+            MarblePool pool = Object.FindFirstObjectByType<MarblePool>();
+            LevelFlowController flow = Object.FindFirstObjectByType<LevelFlowController>();
+            RuntimePerformanceProbe performance =
+                Object.FindFirstObjectByType<RuntimePerformanceProbe>();
+            MarbleSort.Gameplay.Conveyor.ConveyorAdmissionController admission =
+                Object.FindFirstObjectByType<
+                    MarbleSort.Gameplay.Conveyor.ConveyorAdmissionController>();
+            MarbleSort.Gameplay.Conveyor.StadiumConveyorController conveyor =
+                Object.FindFirstObjectByType<MarbleSort.Gameplay.Conveyor.StadiumConveyorController>();
+
+            Assert.That(grid, Is.Not.Null);
+            Assert.That(pool, Is.Not.Null);
+            Assert.That(flow, Is.Not.Null);
+            Assert.That(performance, Is.Not.Null);
+            Assert.That(admission, Is.Not.Null);
+            Assert.That(conveyor, Is.Not.Null);
+            Assert.That(TopGridController.LooseBoardMarbleCapacity, Is.EqualTo(36));
+            Assert.That(pool.InitialCapacity, Is.EqualTo(MarblePool.DefaultInitialCapacity));
+            Assert.That(pool.CreatedCount, Is.EqualTo(MarblePool.DefaultInitialCapacity));
+            Assert.That(pool.RuntimeExpansionCount, Is.Zero);
+            Assert.That(conveyor.BoardClearedSpeedActive, Is.False);
+            Assert.That(
+                conveyor.CurrentUnitsPerSecond,
+                Is.EqualTo(conveyor.BaseUnitsPerSecond).Within(0.001f));
+
+            float originalTimeScale = Time.timeScale;
+            Time.timeScale = 2f;
+            try
+            {
+                // Hold admission temporarily so the measured stress window has
+                // the true maximum of 36 active loose rigidbodies on the board.
+                admission.enabled = false;
+
+                // Four immediate reservations account for all 36 permitted loose
+                // marbles before any release coroutine has spawned its first ball.
+                Assert.That(grid.TrySelectBox("l01_top_yellow_01"), Is.True);
+                Assert.That(grid.TrySelectBox("l01_top_blue_01"), Is.True);
+                Assert.That(grid.TrySelectBox("l01_top_blue_02"), Is.True);
+                Assert.That(grid.TrySelectBox("l01_top_yellow_02"), Is.True);
+                Assert.That(grid.ReservedLooseMarbleCount, Is.EqualTo(36));
+                Assert.That(grid.ProjectedLooseMarbleCount, Is.EqualTo(36));
+                Assert.That(grid.HasCapacityForTrayRelease, Is.False);
+
+                TopBoxView rejectedTray = FindView("l01_top_yellow_03");
+                Assert.That(grid.State.IsExposed(rejectedTray.BoxId), Is.True);
+                Assert.That(grid.TrySelectBox(rejectedTray.BoxId), Is.False);
+                Assert.That(grid.BoardFullRejectionCount, Is.EqualTo(1));
+                Assert.That(rejectedTray.BoardFullFeedbackVisible, Is.True);
+                Assert.That(rejectedTray.BoardFullFeedbackText, Is.EqualTo("Board Full"));
+                Assert.That(grid.State.ActiveCount, Is.EqualTo(2));
+                Assert.That(grid.ActiveReleaseCount, Is.EqualTo(4));
+                Assert.That(rejectedTray.VisibleMarkerCount, Is.EqualTo(9));
+                Assert.That(conveyor.BoardClearedSpeedActive, Is.False);
+
+                yield return null;
+                Assert.That(rejectedTray.BoardFullFeedbackVisible, Is.True);
+
+                float releaseTimeout = Time.realtimeSinceStartup + 12f;
+                while (pool.LooseMarbleCount < 30 &&
+                       Time.realtimeSinceStartup < releaseTimeout)
+                {
+                    yield return null;
+                }
+
+                // The solid board settles a dense pile while any remaining
+                // reserved marbles wait safely in their trays for physical
+                // release clearance. Together they consume the complete
+                // 36-marble capacity budget.
+                Assert.That(pool.LooseMarbleCount, Is.InRange(30, 36));
+                Assert.That(grid.ProjectedLooseMarbleCount, Is.EqualTo(36));
+                Assert.That(
+                    grid.ReservedLooseMarbleCount,
+                    Is.EqualTo(36 - pool.LooseMarbleCount));
+                Assert.That(pool.PeakLooseMarbleCount, Is.InRange(30, 36));
+                Assert.That(pool.RuntimeExpansionCount, Is.Zero);
+
+                Time.timeScale = 1f;
+                performance.ResetMeasurements();
+                int greatestObservedLooseCount = pool.LooseMarbleCount;
+                int greatestProjectedLooseCount = grid.ProjectedLooseMarbleCount;
+                int greatestRuntimeExpansionCount = pool.RuntimeExpansionCount;
+                float lowestRenderedSeparation = pool.LastRenderedMinimumSeparation;
+                float stressUntil = Time.realtimeSinceStartup + 4f;
+                while (performance.FrameSampleCount < 120 &&
+                       Time.realtimeSinceStartup < stressUntil)
+                {
+                    yield return null;
+                    greatestObservedLooseCount = Mathf.Max(
+                        greatestObservedLooseCount,
+                        pool.LooseMarbleCount);
+                    greatestProjectedLooseCount = Mathf.Max(
+                        greatestProjectedLooseCount,
+                        grid.ProjectedLooseMarbleCount);
+                    greatestRuntimeExpansionCount = Mathf.Max(
+                        greatestRuntimeExpansionCount,
+                        pool.RuntimeExpansionCount);
+                    lowestRenderedSeparation = Mathf.Min(
+                        lowestRenderedSeparation,
+                        pool.LastRenderedMinimumSeparation);
+                }
+
+                Debug.Log(
+                    $"Dense-board performance: {performance.FrameSampleCount} frames, " +
+                    $"{performance.AverageFramesPerSecond:0.0} average FPS, " +
+                    $"{performance.WorstFrameMilliseconds:0.00} ms worst frame, " +
+                    $"{performance.GenerationZeroCollections} Gen0 collections, " +
+                    $"{pool.PeakLooseMarbleCount} peak loose marbles, " +
+                    $"{pool.RuntimeExpansionCount} pool expansions.");
+
+                Assert.That(
+                    greatestObservedLooseCount,
+                    Is.GreaterThanOrEqualTo(8),
+                    "The board-capacity stress test did not create a meaningful physical pile.");
+                Assert.That(performance.FrameSampleCount, Is.EqualTo(120));
+                Assert.That(performance.AverageFramesPerSecond, Is.GreaterThanOrEqualTo(50f));
+                Assert.That(performance.WorstFrameMilliseconds, Is.LessThan(33.34f));
+                Assert.That(greatestProjectedLooseCount, Is.LessThanOrEqualTo(36));
+                Assert.That(greatestRuntimeExpansionCount, Is.Zero);
+                Assert.That(
+                    lowestRenderedSeparation,
+                    Is.GreaterThanOrEqualTo(MarblePool.TransitMarbleDiameter - 0.001f));
+                Assert.That(pool.PeakLooseMarbleCount, Is.LessThanOrEqualTo(36));
+                Assert.That(pool.CreatedCount, Is.EqualTo(MarblePool.DefaultInitialCapacity));
+                Assert.That(pool.RuntimeExpansionCount, Is.Zero);
+
+                Time.timeScale = 2f;
+                admission.enabled = true;
+                yield return WaitForTrayCapacityWithoutGrowth(grid, pool);
+                Assert.That(grid.TrySelectBox(rejectedTray.BoxId), Is.True);
+                Assert.That(rejectedTray.BoardFullFeedbackVisible, Is.False);
+                Assert.That(grid.ProjectedLooseMarbleCount, Is.LessThanOrEqualTo(36));
+
+                yield return WaitForTrayCapacityWithoutGrowth(grid, pool);
+                Assert.That(grid.TrySelectBox("l01_top_blue_03"), Is.True);
+                Assert.That(grid.State.ActiveCount, Is.Zero);
+                Assert.That(grid.InputLocked, Is.False);
+                Assert.That(conveyor.BoardClearedSpeedActive, Is.True);
+                Assert.That(
+                    conveyor.CurrentUnitsPerSecond,
+                    Is.GreaterThan(conveyor.BaseUnitsPerSecond),
+                    "The conveyor must accelerate on the final successful tray press.");
+
+                flow.RetryCurrentLevel();
+                yield return null;
+                Assert.That(grid.ReservedLooseMarbleCount, Is.Zero);
+                Assert.That(grid.ProjectedLooseMarbleCount, Is.Zero);
+                Assert.That(grid.BoardFullRejectionCount, Is.Zero);
+                Assert.That(grid.HasCapacityForTrayRelease, Is.True);
+                Assert.That(pool.ActiveCount, Is.Zero);
+                Assert.That(pool.CreatedCount, Is.EqualTo(MarblePool.DefaultInitialCapacity));
+                Assert.That(pool.RuntimeExpansionCount, Is.Zero);
+            }
+            finally
+            {
+                if (admission != null)
+                {
+                    admission.enabled = true;
+                }
+
+                Time.timeScale = originalTimeScale;
+            }
         }
 
         [UnityTest]
@@ -370,6 +545,110 @@ namespace MarbleSort.Tests.PlayMode
                 grid.FormationBackplate.GetCutoutLocalPosition(1),
                 Is.EqualTo(originalBackplatePositions[1]));
             AssertNoSurroundGeometryBehindCutouts(grid.FormationBackplate);
+        }
+
+        [UnityTest]
+        public IEnumerator MysteryTray_RevealsPinkContentsWithoutMovingItsAuthoredCell()
+        {
+            SceneManager.LoadScene("Main", LoadSceneMode.Single);
+            yield return null;
+
+            TopGridController grid = Object.FindFirstObjectByType<TopGridController>();
+            Assert.That(grid, Is.Not.Null);
+
+            LevelData level = new LevelData
+            {
+                id = "mystery_test",
+                displayName = "Mystery Test",
+                topGrid = new TopGridData
+                {
+                    columns = 1,
+                    rows = 2,
+                    cellSpacing = 1f,
+                    boxes = new[]
+                    {
+                        new TopBoxData
+                        {
+                            id = "mystery_lower",
+                            color = "green",
+                            column = 0,
+                            row = 0
+                        },
+                        new TopBoxData
+                        {
+                            id = "mystery_upper",
+                            color = "pink",
+                            column = 0,
+                            row = 1,
+                            mystery = true
+                        }
+                    }
+                }
+            };
+
+            Assert.That(grid.BuildLevel(level), Is.True);
+            TopBoxView mystery = FindView("mystery_upper");
+            Vector3 authoredPosition = mystery.transform.localPosition;
+            Assert.That(mystery.IsMystery, Is.True);
+            Assert.That(mystery.ColorId, Is.EqualTo("pink"));
+            Assert.That(mystery.TrayVisible, Is.False);
+            Assert.That(mystery.HiddenTrayVisible, Is.True);
+            Assert.That(mystery.HiddenArtworkLoaded, Is.True);
+            Assert.That(mystery.HiddenArtworkName, Is.EqualTo("Approved Mystery Top Tray"));
+            Assert.That(mystery.VisibleMarkerCount, Is.Zero);
+
+            Assert.That(grid.TrySelectBox("mystery_lower"), Is.True);
+            yield return WaitForRelease(grid);
+
+            Assert.That(grid.State.IsExposed("mystery_upper"), Is.True);
+            Assert.That(mystery.TrayVisible, Is.True);
+            Assert.That(mystery.HiddenTrayVisible, Is.False);
+            Assert.That(mystery.VisibleMarkerCount, Is.EqualTo(9));
+            Assert.That(mystery.transform.localPosition, Is.EqualTo(authoredPosition));
+            SpriteRenderer exposed = mystery.transform
+                .Find("Exposed Nine-Cup Tray/Hyper Realistic 3x3 Tray")
+                .GetComponent<SpriteRenderer>();
+            Assert.That(exposed.sprite.name, Does.StartWith("Approved Baked Top Tray Pink"));
+        }
+
+        [UnityTest]
+        public IEnumerator MainScene_LevelFiveBuildsApprovedMysteryAndPinkProductionLayout()
+        {
+            SceneManager.LoadScene("Main", LoadSceneMode.Single);
+            yield return null;
+
+            LevelFlowController flow = Object.FindFirstObjectByType<LevelFlowController>();
+            TopGridController grid = Object.FindFirstObjectByType<TopGridController>();
+            Assert.That(flow, Is.Not.Null);
+            Assert.That(grid, Is.Not.Null);
+            Assert.That(flow.TryLoadLevel(4), Is.True);
+            yield return null;
+
+            TopBoxView[] trays = Object.FindObjectsByType<TopBoxView>(FindObjectsSortMode.None);
+            int visibleCount = 0;
+            int mysteryCount = 0;
+            TopBoxView pink = null;
+            for (int index = 0; index < trays.Length; index++)
+            {
+                TopBoxView tray = trays[index];
+                if (grid.State.IsExposed(tray.BoxId)) visibleCount++;
+                if (tray.IsMystery)
+                {
+                    mysteryCount++;
+                    Assert.That(tray.HiddenArtworkName, Is.EqualTo("Approved Mystery Top Tray"));
+                }
+
+                if (tray.ColorId == "pink") pink = tray;
+            }
+
+            Assert.That(trays.Length, Is.EqualTo(10));
+            Assert.That(visibleCount, Is.EqualTo(4));
+            Assert.That(mysteryCount, Is.EqualTo(6));
+            Assert.That(pink, Is.Not.Null);
+            Assert.That(pink.IsMystery, Is.True);
+            Assert.That(grid.State.GetBox(pink.BoxId).InitialRow, Is.EqualTo(2));
+            Assert.That(grid.FormationBackplate.CutoutCount, Is.EqualTo(10));
+            Assert.That(grid.FormationBackplate.BakedArtworkName, Does.StartWith("Exact Approved Premium Sheet"));
         }
 
         [UnityTest]
@@ -510,12 +789,12 @@ namespace MarbleSort.Tests.PlayMode
         private static IEnumerator WaitForRelease(TopGridController grid)
         {
             float timeout = Time.realtimeSinceStartup + 6f;
-            while (grid.InputLocked && Time.realtimeSinceStartup < timeout)
+            while (grid.ActiveReleaseCount > 0 && Time.realtimeSinceStartup < timeout)
             {
                 yield return null;
             }
 
-            Assert.That(grid.InputLocked, Is.False, "The release flow timed out.");
+            Assert.That(grid.ActiveReleaseCount, Is.Zero, "The release flow timed out.");
         }
 
         private static IEnumerator WaitForReleaseWithoutOverlap(
@@ -523,14 +802,33 @@ namespace MarbleSort.Tests.PlayMode
             MarblePool pool)
         {
             float timeout = Time.realtimeSinceStartup + 6f;
-            while (grid.InputLocked && Time.realtimeSinceStartup < timeout)
+            while (grid.ActiveReleaseCount > 0 && Time.realtimeSinceStartup < timeout)
             {
                 yield return null;
                 AssertRentedMarblesDoNotOverlap(pool);
             }
 
-            Assert.That(grid.InputLocked, Is.False, "The collision-safe release flow timed out.");
+            Assert.That(grid.ActiveReleaseCount, Is.Zero, "The collision-safe release flow timed out.");
             AssertRentedMarblesDoNotOverlap(pool);
+        }
+
+        private static IEnumerator WaitForTrayCapacityWithoutGrowth(
+            TopGridController grid,
+            MarblePool pool)
+        {
+            float timeout = Time.realtimeSinceStartup + 12f;
+            while (!grid.HasCapacityForTrayRelease && Time.realtimeSinceStartup < timeout)
+            {
+                yield return null;
+                Assert.That(pool.LooseMarbleCount, Is.LessThanOrEqualTo(36));
+                Assert.That(grid.ProjectedLooseMarbleCount, Is.LessThanOrEqualTo(36));
+                Assert.That(pool.RuntimeExpansionCount, Is.Zero);
+            }
+
+            Assert.That(
+                grid.HasCapacityForTrayRelease,
+                Is.True,
+                "The conveyor did not free nine loose-board positions before the timeout.");
         }
 
         private static void AssertRentedMarblesDoNotOverlap(MarblePool pool)

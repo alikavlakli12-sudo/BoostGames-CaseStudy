@@ -19,9 +19,10 @@ namespace MarbleSort.Editor
         private const string ScenePath = "Assets/MarbleSort/Scenes/Main.unity";
         private const string MaterialsPath = "Assets/MarbleSort/Art/Materials";
         private const string BackgroundTexturePath =
-            "Assets/MarbleSort/Art/Textures/PortraitEnvironmentSingleBoard.png";
+            "Assets/MarbleSort/Art/Textures/PortraitEnvironmentReceiverBayLowered.png";
         private const string HudPlateTexturePath =
-            "Assets/MarbleSort/Resources/Presentation/UI/PremiumTopHudPlate.png";
+            "Assets/MarbleSort/Resources/Presentation/UI/Approved/PremiumTopHudPlateAqua.png";
+        private const float ConveyorLocalY = -4.015f;
 
         [MenuItem("Marble Sort/Setup/Rebuild Base Scene")]
         public static void CreateBaseProject()
@@ -43,6 +44,7 @@ namespace MarbleSort.Editor
             Material blue = GetOrCreateMaterial("Blue", new Color32(57, 84, 239, 255));
             Material orange = GetOrCreateMaterial("Orange", new Color32(255, 164, 46, 255));
             Material yellow = GetOrCreateMaterial("Yellow", new Color32(255, 225, 61, 255));
+            Material pink = GetOrCreateMaterial("Pink", new Color32(246, 78, 178, 255));
             Material backgroundArt = GetOrCreateBackgroundMaterial();
 
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
@@ -60,9 +62,13 @@ namespace MarbleSort.Editor
             systems.transform.SetParent(root.transform);
             GameBootstrap bootstrap = systems.AddComponent<GameBootstrap>();
             MarblePalette palette = systems.AddComponent<MarblePalette>();
-            palette.Configure(green, blue, orange, yellow);
+            palette.Configure(green, blue, orange, yellow, pink);
             MarblePool marblePool = systems.AddComponent<MarblePool>();
-            marblePool.Configure(palette, 72, MarblePool.TransitMarbleDiameter, -8.5f);
+            marblePool.Configure(
+                palette,
+                MarblePool.DefaultInitialCapacity,
+                MarblePool.TransitMarbleDiameter,
+                -8.5f);
 
             GameObject board = new GameObject("Board");
             board.transform.SetParent(root.transform);
@@ -104,6 +110,15 @@ namespace MarbleSort.Editor
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             Debug.Log($"Marble Sort base project created at {ScenePath}.");
+        }
+
+        [MenuItem("Marble Sort/Setup/Apply Lowered Receiver Bay Artwork")]
+        public static void ApplyLoweredReceiverBayArtwork()
+        {
+            GetOrCreateBackgroundMaterial();
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            Debug.Log("Applied the lowered receiver-bay environment artwork.");
         }
 
         private static void ConfigureProjectSettings()
@@ -343,7 +358,7 @@ namespace MarbleSort.Editor
         {
             GameObject conveyorRoot = new GameObject("Stadium Conveyor");
             conveyorRoot.transform.SetParent(parent);
-            conveyorRoot.transform.localPosition = new Vector3(0f, -3.25f, 0f);
+            conveyorRoot.transform.localPosition = new Vector3(0f, ConveyorLocalY, 0f);
             conveyorRoot.transform.localScale = Vector3.one;
 
             List<Transform> slotViews = new List<Transform>(24);

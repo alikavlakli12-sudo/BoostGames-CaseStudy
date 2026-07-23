@@ -28,6 +28,12 @@ namespace MarbleSort.Presentation
 
         private static Material softShadow;
         private static Material brightWhite;
+        private static Material trayFormationRim;
+        private static Material trayFormationFill;
+        private static Material trayFormationSidewall;
+        private static Material trayFormationRimProfile;
+        private static Material trayFormationBevel;
+        private static Material trayFormationHighlight;
 
         public static Material GetDarkened(Material source)
         {
@@ -128,6 +134,85 @@ namespace MarbleSort.Presentation
             return brightWhite;
         }
 
+        public static Material GetTrayFormationRim()
+        {
+            if (trayFormationRim == null)
+            {
+                trayFormationRim = CreateLineMaterial(new Color32(26, 66, 116, 255));
+                trayFormationRim.name = "Premium Sheet Navy Depth";
+            }
+
+            return trayFormationRim;
+        }
+
+        public static Material GetTrayFormationFill()
+        {
+            if (trayFormationFill == null)
+            {
+                Texture2D surface = Resources.Load<Texture2D>(
+                    "Presentation/Surround/Approved/AquaSheetSurface");
+                trayFormationFill = CreateTexturedMaterial(
+                    surface,
+                    Color.white,
+                    "Approved Aqua Sheet Surface");
+            }
+
+            return trayFormationFill;
+        }
+
+        public static Material GetTrayFormationSidewall()
+        {
+            if (trayFormationSidewall == null)
+            {
+                Texture2D surface = Resources.Load<Texture2D>(
+                    "Presentation/Surround/Approved/AquaSheetSurface");
+                trayFormationSidewall = CreateTexturedMaterial(
+                    surface,
+                    new Color32(49, 119, 140, 255),
+                    "Aqua Sheet Lower Sidewall",
+                    preferTintableShader: true);
+            }
+
+            return trayFormationSidewall;
+        }
+
+        public static Material GetTrayFormationRimProfile()
+        {
+            if (trayFormationRimProfile == null)
+            {
+                Texture2D profile = Resources.Load<Texture2D>(
+                    "Presentation/Surround/Approved/AquaSheetRimProfile");
+                trayFormationRimProfile = CreateTexturedMaterial(
+                    profile,
+                    Color.white,
+                    "Approved Aqua Sheet Rim Profile");
+            }
+
+            return trayFormationRimProfile;
+        }
+
+        public static Material GetTrayFormationBevel()
+        {
+            if (trayFormationBevel == null)
+            {
+                trayFormationBevel = CreateLineMaterial(new Color32(76, 163, 181, 255));
+                trayFormationBevel.name = "Premium Sheet Aqua Inner Lip";
+            }
+
+            return trayFormationBevel;
+        }
+
+        public static Material GetTrayFormationHighlight()
+        {
+            if (trayFormationHighlight == null)
+            {
+                trayFormationHighlight = CreateLineMaterial(new Color32(215, 244, 249, 255));
+                trayFormationHighlight.name = "Premium Sheet Pearlescent Highlight";
+            }
+
+            return trayFormationHighlight;
+        }
+
         private static Material CreateDerived(
             Material source,
             Color color,
@@ -158,6 +243,69 @@ namespace MarbleSort.Presentation
                 hideFlags = HideFlags.HideAndDontSave
             };
             ConfigureSurface(material, 0.3f);
+            return material;
+        }
+
+        private static Material CreateLineMaterial(Color color)
+        {
+            Shader shader = Shader.Find("Unlit/Color");
+            if (shader == null)
+            {
+                shader = Shader.Find("Sprites/Default");
+            }
+
+            Material material = new Material(shader)
+            {
+                color = color,
+                hideFlags = HideFlags.HideAndDontSave
+            };
+            material.enableInstancing = true;
+            return material;
+        }
+
+        private static Material CreateSpriteMaterial(Color color)
+        {
+            Shader shader = Shader.Find("Sprites/Default");
+            if (shader == null)
+            {
+                shader = Shader.Find("Unlit/Color");
+            }
+
+            Material material = new Material(shader)
+            {
+                color = color,
+                hideFlags = HideFlags.HideAndDontSave
+            };
+            material.enableInstancing = true;
+            return material;
+        }
+
+        private static Material CreateTexturedMaterial(
+            Texture texture,
+            Color tint,
+            string materialName,
+            bool preferTintableShader = false)
+        {
+            Shader shader = preferTintableShader
+                ? Shader.Find("Sprites/Default")
+                : Shader.Find("Unlit/Texture");
+            if (shader == null)
+            {
+                shader = Shader.Find("Sprites/Default");
+            }
+
+            Material material = new Material(shader)
+            {
+                mainTexture = texture,
+                name = materialName,
+                hideFlags = HideFlags.HideAndDontSave
+            };
+            if (material.HasProperty("_Color"))
+            {
+                material.SetColor("_Color", tint);
+            }
+
+            material.enableInstancing = true;
             return material;
         }
 

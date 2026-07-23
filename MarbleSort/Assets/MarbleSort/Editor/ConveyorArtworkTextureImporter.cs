@@ -10,6 +10,8 @@ namespace MarbleSort.Editor
     {
         private const string ArtworkFolder =
             "Assets/MarbleSort/Resources/Presentation/Conveyor/";
+        private const string AtlasPath =
+            ArtworkFolder + "ConveyorAnimationAtlas.png";
 
         [MenuItem("Marble Sort/Setup/Reimport Conveyor Artwork")]
         public static void ReimportAll()
@@ -40,18 +42,43 @@ namespace MarbleSort.Editor
             importer.mipmapEnabled = false;
             importer.isReadable = false;
             importer.npotScale = TextureImporterNPOTScale.None;
-            importer.wrapMode = assetPath.EndsWith(
-                "/ConveyorApprovedBeltLoop.png",
-                System.StringComparison.Ordinal)
-                ? TextureWrapMode.Repeat
-                : TextureWrapMode.Clamp;
+            importer.wrapMode = TextureWrapMode.Clamp;
             importer.filterMode = FilterMode.Bilinear;
-            importer.textureCompression = TextureImporterCompression.Uncompressed;
-            importer.maxTextureSize = assetPath.EndsWith(
-                "/ConveyorApprovedReference.png",
+            importer.textureCompression = TextureImporterCompression.CompressedHQ;
+            importer.compressionQuality = 100;
+            importer.crunchedCompression = false;
+            importer.maxTextureSize = assetPath.Equals(
+                AtlasPath,
                 System.StringComparison.Ordinal)
-                ? 4096
-                : 2048;
+                ? 8192
+                : 4096;
+
+            if (assetPath.Equals(AtlasPath, System.StringComparison.Ordinal))
+            {
+                ConfigurePlatform(importer, "iPhone", TextureImporterFormat.ASTC_5x5);
+                // Android's Build Settings select ASTC for modern-device builds
+                // or ETC2 for the compatibility build from this automatic HQ source.
+                importer.ClearPlatformTextureSettings("Android");
+            }
         }
+
+        private static void ConfigurePlatform(
+            TextureImporter importer,
+            string platform,
+            TextureImporterFormat format)
+        {
+            TextureImporterPlatformSettings settings =
+                importer.GetPlatformTextureSettings(platform);
+            settings.name = platform;
+            settings.overridden = true;
+            settings.maxTextureSize = 8192;
+            settings.resizeAlgorithm = TextureResizeAlgorithm.Mitchell;
+            settings.format = format;
+            settings.textureCompression = TextureImporterCompression.CompressedHQ;
+            settings.compressionQuality = 100;
+            settings.crunchedCompression = false;
+            importer.SetPlatformTextureSettings(settings);
+        }
+
     }
 }

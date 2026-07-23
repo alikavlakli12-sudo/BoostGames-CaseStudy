@@ -140,8 +140,9 @@ namespace MarbleSort.Presentation
 
         private void HandleReceiverCompleted(int laneIndex, string boxId, string colorId)
         {
-            Vector3 position = receivers.GetCollectionWorldPosition(laneIndex);
-            EmitBurst(position + Vector3.back * 0.5f, GetColor(colorId), 18, 1.65f);
+            // The receiver owns its precisely timed four-star completion burst so it can
+            // begin on the first frame after the lid closes. Keep the shared completion
+            // sound here without layering the old generic sphere particles over the stars.
             Play(audioBank.ReceiverComplete, 0.88f);
         }
 

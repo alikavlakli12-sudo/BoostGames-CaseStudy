@@ -21,7 +21,7 @@ namespace MarbleSort.Presentation
         private static readonly HashSet<string> SupportedColors =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
-                "green", "blue", "orange", "yellow"
+                "green", "blue", "orange", "yellow", "pink"
             };
 
         public static bool TryGet(string colorId, out TopTrayArtwork artwork)

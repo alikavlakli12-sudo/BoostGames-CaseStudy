@@ -37,7 +37,7 @@ namespace MarbleSort.Gameplay.Marbles
 
         public float VisualDiameter => transform.localScale.x;
 
-        public float CollisionDiameter { get; private set; } = MarblePool.TransitMarbleDiameter;
+        public float CollisionDiameter { get; private set; } = MarblePool.TransitCollisionDiameter;
 
         internal MarblePool Owner => owner;
 
@@ -55,7 +55,7 @@ namespace MarbleSort.Gameplay.Marbles
             ColorId = MarblePalette.Normalize(colorId);
             transform.SetPositionAndRotation(position, Quaternion.identity);
             visual.sharedMaterial = material;
-            CollisionDiameter = MarblePool.TransitMarbleDiameter;
+            CollisionDiameter = MarblePool.TransitCollisionDiameter;
             ApplyVisualDiameter(MarblePool.RestingMarbleDiameter, CollisionDiameter);
             BeginScaleTransition(
                 MarblePool.RestingMarbleDiameter,
@@ -180,7 +180,7 @@ namespace MarbleSort.Gameplay.Marbles
             body.angularVelocity = Vector3.zero;
             body.WakeUp();
             MotionMode = MarbleMotionMode.LoosePhysics;
-            CollisionDiameter = MarblePool.TransitMarbleDiameter;
+            CollisionDiameter = MarblePool.TransitCollisionDiameter;
             CompleteScaleTransition(MarblePool.TransitMarbleDiameter);
             return true;
         }
@@ -208,7 +208,7 @@ namespace MarbleSort.Gameplay.Marbles
             IsRented = false;
             MotionMode = MarbleMotionMode.Pooled;
             scaleTransitionActive = false;
-            CollisionDiameter = MarblePool.TransitMarbleDiameter;
+            CollisionDiameter = MarblePool.TransitCollisionDiameter;
             ApplyVisualDiameter(MarblePool.TransitMarbleDiameter, CollisionDiameter);
             gameObject.SetActive(false);
         }

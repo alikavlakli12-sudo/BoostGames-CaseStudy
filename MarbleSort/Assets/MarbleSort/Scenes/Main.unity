@@ -339,7 +339,6 @@ MonoBehaviour:
   inputCamera: {fileID: 742446328}
   releaseInterval: 0.01
   disappearDuration: 0.14
-  collapseDuration: 0.18
 --- !u!4 &35396989
 Transform:
   m_ObjectHideFlags: 0
@@ -2753,6 +2752,7 @@ MonoBehaviour:
   bootstrap: {fileID: 777860813}
   slotCount: 24
   unitsPerSecond: 3.7
+  boardClearedSpeedMultiplier: 1.8
   straightLength: 5.125664
   turnRadius: 0.51
   phase: 0.18704186
@@ -2791,7 +2791,7 @@ Transform:
   m_GameObject: {fileID: 1570268032}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: -3.25, z: 0}
+  m_LocalPosition: {x: 0, y: -4.015, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:

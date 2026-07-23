@@ -37,9 +37,9 @@ namespace MarbleSort.Editor
             importer.alphaSource = TextureImporterAlphaSource.FromInput;
             importer.alphaIsTransparency = true;
             importer.sRGBTexture = true;
-            bool isExposedTray = !assetPath.Contains(
-                "/Hidden/",
-                System.StringComparison.Ordinal);
+            bool isExposedTray =
+                !assetPath.Contains("/Hidden/", System.StringComparison.Ordinal) &&
+                !assetPath.Contains("/Mystery/", System.StringComparison.Ordinal);
             importer.mipmapEnabled = isExposedTray;
             importer.mipMapsPreserveCoverage = isExposedTray;
             importer.isReadable = false;

@@ -8,13 +8,19 @@ namespace MarbleSort.Editor
     /// </summary>
     public sealed class ReceiverArtworkTextureImporter : AssetPostprocessor
     {
-        private const string ArtworkFolder =
+        private const string LegacyArtworkFolder =
             "Assets/MarbleSort/Resources/Presentation/Receivers/";
+        private const string ApprovedArtworkFolder =
+            "Assets/MarbleSort/Resources/Presentation/ReceiversV3/";
+        private const string LaneArtworkFolder =
+            "Assets/MarbleSort/Resources/Presentation/ReceiverLanes/";
 
         [MenuItem("Marble Sort/Setup/Reimport Receiver Artwork")]
         public static void ReimportAll()
         {
-            string[] assetGuids = AssetDatabase.FindAssets("t:Texture2D", new[] { ArtworkFolder });
+            string[] assetGuids = AssetDatabase.FindAssets(
+                "t:Texture2D",
+                new[] { LegacyArtworkFolder, ApprovedArtworkFolder, LaneArtworkFolder });
             foreach (string assetGuid in assetGuids)
             {
                 string path = AssetDatabase.GUIDToAssetPath(assetGuid);
@@ -27,7 +33,9 @@ namespace MarbleSort.Editor
 
         private void OnPreprocessTexture()
         {
-            if (!assetPath.StartsWith(ArtworkFolder, System.StringComparison.Ordinal))
+            if (!assetPath.StartsWith(LegacyArtworkFolder, System.StringComparison.Ordinal) &&
+                !assetPath.StartsWith(ApprovedArtworkFolder, System.StringComparison.Ordinal) &&
+                !assetPath.StartsWith(LaneArtworkFolder, System.StringComparison.Ordinal))
             {
                 return;
             }
@@ -37,13 +45,23 @@ namespace MarbleSort.Editor
             importer.alphaSource = TextureImporterAlphaSource.FromInput;
             importer.alphaIsTransparency = true;
             importer.sRGBTexture = true;
-            importer.mipmapEnabled = false;
+            bool isApprovedReceiver = assetPath.StartsWith(
+                ApprovedArtworkFolder,
+                System.StringComparison.Ordinal);
+            importer.mipmapEnabled = isApprovedReceiver;
+            importer.mipMapsPreserveCoverage = isApprovedReceiver;
             importer.isReadable = false;
             importer.npotScale = TextureImporterNPOTScale.None;
             importer.wrapMode = TextureWrapMode.Clamp;
-            importer.filterMode = FilterMode.Bilinear;
+            importer.filterMode = isApprovedReceiver
+                ? FilterMode.Trilinear
+                : FilterMode.Bilinear;
             importer.textureCompression = TextureImporterCompression.Uncompressed;
-            importer.maxTextureSize = 1024;
+            importer.maxTextureSize = assetPath.StartsWith(
+                LaneArtworkFolder,
+                System.StringComparison.Ordinal)
+                ? 2048
+                : 1024;
         }
     }
 }

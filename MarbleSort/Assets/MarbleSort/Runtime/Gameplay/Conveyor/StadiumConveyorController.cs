@@ -14,6 +14,7 @@ namespace MarbleSort.Gameplay.Conveyor
         [SerializeField] private GameBootstrap bootstrap;
         [SerializeField, Min(1)] private int slotCount = 24;
         [SerializeField, Min(0.01f)] private float unitsPerSecond = 4f;
+        [SerializeField, Min(1f)] private float boardClearedSpeedMultiplier = 1.8f;
         [SerializeField, Min(0.01f)] private float straightLength = 7f;
         [SerializeField, Min(0.01f)] private float turnRadius = 0.75f;
         [SerializeField, Range(0f, 1f)] private float phase;
@@ -22,6 +23,7 @@ namespace MarbleSort.Gameplay.Conveyor
 
         private MarbleActor[] occupants = Array.Empty<MarbleActor>();
         private ConveyorState state;
+        private bool boardClearedSpeedActive;
 
         public event Action<int, string, MarbleActor> SlotOccupied;
 
@@ -30,6 +32,13 @@ namespace MarbleSort.Gameplay.Conveyor
         public int SlotCount => slotCount;
 
         public float Phase => phase;
+
+        public float BaseUnitsPerSecond => unitsPerSecond;
+
+        public float CurrentUnitsPerSecond => unitsPerSecond *
+            (boardClearedSpeedActive ? boardClearedSpeedMultiplier : 1f);
+
+        public bool BoardClearedSpeedActive => boardClearedSpeedActive;
 
         public float StraightLength => straightLength;
 
@@ -58,6 +67,7 @@ namespace MarbleSort.Gameplay.Conveyor
                 newTurnRadius);
             slotViews = newSlotViews ?? Array.Empty<Transform>();
             phase = EntranceNormalizedDistance;
+            boardClearedSpeedActive = false;
             RefreshPresentation();
         }
 
@@ -229,7 +239,13 @@ namespace MarbleSort.Gameplay.Conveyor
             state = new ConveyorState(slotCount);
             occupants = new MarbleActor[slotCount];
             phase = EntranceNormalizedDistance;
+            boardClearedSpeedActive = false;
             RefreshPresentation();
+        }
+
+        public void SetBoardClearedSpeed(bool isActive)
+        {
+            boardClearedSpeedActive = isActive;
         }
 
         public void RefreshPresentation()
@@ -278,7 +294,9 @@ namespace MarbleSort.Gameplay.Conveyor
         private void Update()
         {
             float perimeter = StadiumPath.GetPerimeter(straightLength, turnRadius);
-            phase = Mathf.Repeat(phase + ((unitsPerSecond / perimeter) * Time.deltaTime), 1f);
+            phase = Mathf.Repeat(
+                phase + ((CurrentUnitsPerSecond / perimeter) * Time.deltaTime),
+                1f);
             RefreshPresentation();
         }
 
@@ -359,6 +377,7 @@ namespace MarbleSort.Gameplay.Conveyor
         {
             slotCount = Mathf.Max(1, slotCount);
             unitsPerSecond = Mathf.Max(0.01f, unitsPerSecond);
+            boardClearedSpeedMultiplier = Mathf.Max(1f, boardClearedSpeedMultiplier);
             straightLength = Mathf.Max(0.01f, straightLength);
             turnRadius = Mathf.Max(0.01f, turnRadius);
             occupantDepth = Mathf.Min(0f, occupantDepth);

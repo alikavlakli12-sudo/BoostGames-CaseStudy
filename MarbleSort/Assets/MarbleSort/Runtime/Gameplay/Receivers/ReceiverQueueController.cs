@@ -15,7 +15,48 @@ namespace MarbleSort.Gameplay.Receivers
     public sealed class ReceiverQueueController : MonoBehaviour
     {
         private const float ReceiverWidth = 1.7f;
-        private const float ReceiverMarkerY = 0.19f;
+        private const float ReceiverMarkerY = 0.24f;
+        private const float ReceiverMarkerSpacing = 0.495f;
+        private const string ReceiverLaneArtworkName = "Flat Receiver Queue Lane";
+        private const float ReceiverLaneArtworkWidth = 1.66f;
+        private const float ReceiverLaneArtworkCenterY = -1.86f;
+        private const float ReceiverLaneArtworkDepth = 0.08f;
+        private const int ReceiverLaneArtworkSortingOrder = 12;
+        private const float ReceiverAreaOffsetY = -0.765f;
+        private const float ReceiverQueueSpacingScale = 0.90f;
+        private const int CompletionStarCount = 4;
+
+        private static readonly Vector2[] CompletionStarDirections =
+        {
+            new Vector2(-0.82f, 0.58f),
+            new Vector2(-0.28f, 0.96f),
+            new Vector2(0.34f, 0.94f),
+            new Vector2(0.86f, 0.52f)
+        };
+
+        private static readonly float[] CompletionStarSizes =
+        {
+            0.26f,
+            0.33f,
+            0.40f,
+            0.49f
+        };
+
+        private static readonly float[] CompletionStarDistanceMultipliers =
+        {
+            0.82f,
+            1.04f,
+            0.94f,
+            0.76f
+        };
+
+        private static readonly float[] CompletionStarRotations =
+        {
+            -14f,
+            9f,
+            -7f,
+            15f
+        };
 
         [SerializeField] private GameBootstrap bootstrap;
         [SerializeField] private StadiumConveyorController conveyor;
@@ -29,11 +70,14 @@ namespace MarbleSort.Gameplay.Receivers
         [SerializeField, Min(0.01f)] private float lidOpenDuration = 0.24f;
         [SerializeField, Min(0.01f)] private float lidCloseDuration = 0.13f;
         [SerializeField, Min(0.01f)] private float queueAdvanceDuration = 0.16f;
+        [SerializeField, Min(0.1f)] private float completionStarBurstDuration = 0.36f;
+        [SerializeField, Min(0.1f)] private float completionStarBurstDistance = 0.64f;
 
         private readonly Dictionary<string, ReceiverBoxRuntimeView> boxViews =
             new Dictionary<string, ReceiverBoxRuntimeView>(StringComparer.OrdinalIgnoreCase);
         private readonly List<GameObject> laneRoots = new List<GameObject>(4);
         private readonly List<MarbleActor> transferringMarbles = new List<MarbleActor>(4);
+        private readonly List<GameObject> completionStarBurstRoots = new List<GameObject>(4);
 
         private LevelData currentLevel;
         private ReceiverQueueState state;
@@ -56,6 +100,8 @@ namespace MarbleSort.Gameplay.Receivers
 
         public int GeneratedLidCount => boxViews.Count;
 
+        public int GeneratedLaneArtworkCount { get; private set; }
+
         public int OpenLidCount
         {
             get
@@ -74,6 +120,12 @@ namespace MarbleSort.Gameplay.Receivers
         }
 
         public int ClosedLidCount => Mathf.Max(0, GeneratedLidCount - OpenLidCount);
+
+        public int ActiveCompletionStarCount { get; private set; }
+
+        public int CompletionStarBurstCount { get; private set; }
+
+        public float PresentationOffsetY => transform.localPosition.y;
 
         public void Configure(
             GameBootstrap gameBootstrap,
@@ -105,12 +157,17 @@ namespace MarbleSort.Gameplay.Receivers
                 return false;
             }
 
+            Vector3 receiverAreaPosition = transform.localPosition;
+            receiverAreaPosition.y = ReceiverAreaOffsetY;
+            transform.localPosition = receiverAreaPosition;
+
             CancelPendingTransfers();
             ClearViews();
 
             currentLevel = level;
             state = new ReceiverQueueState(level.receiverLanes);
             laneTransfers = new bool[state.Lanes.Count];
+
             ReceiverBoxRuntimeView[] activeViews = new ReceiverBoxRuntimeView[state.Lanes.Count];
             for (int laneIndex = 0; laneIndex < state.Lanes.Count; laneIndex++)
             {
@@ -319,10 +376,11 @@ namespace MarbleSort.Gameplay.Receivers
             {
                 boxView.SetFilledCount(result.FillCount);
                 yield return AnimateLid(boxView, false, lidCloseDuration);
+                BeginCompletionStarBurst(boxView.Root.transform.position);
                 yield return AnimateBoxExit(boxView.Root.transform);
 
                 List<ReceiverBoxRuntimeView> promotedViews = new List<ReceiverBoxRuntimeView>();
-                float spacing = currentLevel.receiverLanes[result.LaneIndex].verticalSpacing;
+                float spacing = GetPresentationSpacing(result.LaneIndex);
                 ReceiverBoxRuntimeView nextActive = RebuildLaneView(
                     result.LaneIndex,
                     -spacing,
@@ -375,6 +433,25 @@ namespace MarbleSort.Gameplay.Receivers
             laneRoot.transform.SetParent(transform, false);
             laneRoot.transform.localPosition = laneData.position.ToVector3();
             laneRoots.Add(laneRoot);
+            CreateLaneArtwork(laneRoot.transform);
+        }
+
+        private void CreateLaneArtwork(Transform laneRoot)
+        {
+            if (!ReceiverQueueLaneArtworkLibrary.TryGet(out Sprite laneSprite))
+            {
+                throw new InvalidOperationException("Approved receiver queue lane artwork is unavailable.");
+            }
+
+            GameObject laneArtwork = CreateSpriteVisual(
+                ReceiverLaneArtworkName,
+                laneRoot,
+                laneSprite,
+                new Vector3(0f, ReceiverLaneArtworkCenterY, ReceiverLaneArtworkDepth),
+                ReceiverLaneArtworkWidth,
+                ReceiverLaneArtworkSortingOrder);
+            laneArtwork.transform.localRotation = Quaternion.identity;
+            GeneratedLaneArtworkCount++;
         }
 
         private ReceiverBoxRuntimeView RebuildLaneView(
@@ -385,8 +462,8 @@ namespace MarbleSort.Gameplay.Receivers
             GameObject laneRoot = laneRoots[laneIndex];
             ClearLaneChildren(laneRoot.transform);
 
-            ReceiverLaneData laneData = currentLevel.receiverLanes[laneIndex];
             ReceiverLaneState laneState = state.Lanes[laneIndex];
+            float presentationSpacing = GetPresentationSpacing(laneIndex);
             ReceiverBoxRuntimeView activeView = null;
             int visibleIndex = 0;
             for (int boxIndex = laneState.ActiveBoxIndex; boxIndex < laneState.Boxes.Count; boxIndex++)
@@ -396,7 +473,7 @@ namespace MarbleSort.Gameplay.Receivers
                 ReceiverBoxRuntimeView view = CreateBoxView(
                     laneRoot.transform,
                     box,
-                    new Vector3(0f, -(visibleIndex * laneData.verticalSpacing) + spawnOffsetY, 0f),
+                    new Vector3(0f, -(visibleIndex * presentationSpacing) + spawnOffsetY, 0f),
                     isActive,
                     visibleIndex);
                 boxViews[box.Id] = view;
@@ -410,6 +487,12 @@ namespace MarbleSort.Gameplay.Receivers
             }
 
             return activeView;
+        }
+
+        private float GetPresentationSpacing(int laneIndex)
+        {
+            return currentLevel.receiverLanes[laneIndex].verticalSpacing *
+                   ReceiverQueueSpacingScale;
         }
 
         private ReceiverBoxRuntimeView CreateBoxView(
@@ -436,21 +519,24 @@ namespace MarbleSort.Gameplay.Receivers
             GameObject body = CreateSpriteVisual(
                 "Hyper Realistic Receiver Body",
                 root.transform,
-                artwork.Box,
+                artwork.GetOpenFrame(box.FillCount),
                 new Vector3(0f, 0f, -0.2f),
                 ReceiverWidth,
                 sortingBase);
             SpriteRenderer bodyRenderer = body.GetComponent<SpriteRenderer>();
 
+            // The approved closed receiver is also one complete baked image. The
+            // lift transform remains as an animation channel, but there is no
+            // reconstructed lid, connector, hinge, or second box shell.
             GameObject lidLiftObject = new GameObject("Receiver Lid Lift");
             lidLiftObject.transform.SetParent(root.transform, false);
-            lidLiftObject.transform.localPosition = new Vector3(0f, 0.13f, -0.27f);
+            lidLiftObject.transform.localPosition = Vector3.zero;
 
             GameObject lid = CreateSpriteVisual(
                 "Hyper Realistic Receiver Lid",
                 lidLiftObject.transform,
-                artwork.Cap,
-                Vector3.zero,
+                artwork.Closed,
+                new Vector3(0f, 0f, -0.21f),
                 ReceiverWidth,
                 sortingBase + 2);
             SpriteRenderer lidRenderer = lid.GetComponent<SpriteRenderer>();
@@ -467,10 +553,16 @@ namespace MarbleSort.Gameplay.Receivers
                         $"Glossy Receiver Ball {index + 1}",
                         root.transform,
                         artwork.Ball,
-                        new Vector3(-0.46f + (index * 0.46f), ReceiverMarkerY, -0.24f),
+                        new Vector3(
+                            -ReceiverMarkerSpacing + (index * ReceiverMarkerSpacing),
+                            ReceiverMarkerY,
+                            -0.24f),
                         MarblePool.ReceiverMarbleDiameter,
                         sortingBase + 1,
                         fitByHeight: true);
+                    // These transforms are mechanical transfer anchors only. The
+                    // visible balls are already baked into the complete frame.
+                    marker.GetComponent<SpriteRenderer>().enabled = false;
                     markers[index] = marker;
                     markerTransforms[index] = marker.transform;
                 }
@@ -482,6 +574,7 @@ namespace MarbleSort.Gameplay.Receivers
                 bodyRenderer,
                 lidLiftObject.transform,
                 lidRenderer,
+                artwork,
                 markers,
                 markerTransforms);
             view.SetLidOpenAmount(0f);
@@ -651,6 +744,119 @@ namespace MarbleSort.Gameplay.Receivers
             target.localPosition = endPosition;
         }
 
+        private void BeginCompletionStarBurst(Vector3 receiverWorldPosition)
+        {
+            if (!ReceiverCompletionStarArtworkLibrary.TryGet(out Sprite starSprite))
+            {
+                return;
+            }
+
+            GameObject burstRoot = new GameObject("Receiver Completion Star Burst");
+            burstRoot.transform.SetParent(transform, true);
+            burstRoot.transform.position = receiverWorldPosition + new Vector3(0f, 0.13f, -0.5f);
+            burstRoot.transform.rotation = Quaternion.identity;
+            burstRoot.transform.localScale = Vector3.one;
+            completionStarBurstRoots.Add(burstRoot);
+
+            Transform[] stars = new Transform[CompletionStarCount];
+            SpriteRenderer[] renderers = new SpriteRenderer[CompletionStarCount];
+            float[] finalScales = new float[CompletionStarCount];
+            float inheritedScale = Mathf.Max(0.0001f, Mathf.Abs(burstRoot.transform.lossyScale.x));
+            float sourceWidth = Mathf.Max(0.0001f, starSprite.bounds.size.x);
+
+            for (int index = 0; index < CompletionStarCount; index++)
+            {
+                GameObject star = new GameObject($"Completion Star {index + 1}");
+                star.transform.SetParent(burstRoot.transform, false);
+                star.transform.localPosition = Vector3.zero;
+                star.transform.localRotation = Quaternion.Euler(0f, 0f, CompletionStarRotations[index]);
+
+                SpriteRenderer renderer = star.AddComponent<SpriteRenderer>();
+                renderer.sprite = starSprite;
+                renderer.color = Color.white;
+                renderer.sortingOrder = 90 + index;
+
+                finalScales[index] = CompletionStarSizes[index] / (sourceWidth * inheritedScale);
+                star.transform.localScale = Vector3.one * (finalScales[index] * 0.08f);
+                stars[index] = star.transform;
+                renderers[index] = renderer;
+            }
+
+            ActiveCompletionStarCount += CompletionStarCount;
+            CompletionStarBurstCount++;
+            StartCoroutine(AnimateCompletionStarBurst(
+                burstRoot,
+                stars,
+                renderers,
+                finalScales));
+        }
+
+        private IEnumerator AnimateCompletionStarBurst(
+            GameObject burstRoot,
+            IReadOnlyList<Transform> stars,
+            IReadOnlyList<SpriteRenderer> renderers,
+            IReadOnlyList<float> finalScales)
+        {
+            float duration = Mathf.Max(0.1f, completionStarBurstDuration);
+            float distance = Mathf.Max(0.1f, completionStarBurstDistance);
+            float elapsed = 0f;
+            while (elapsed < duration && burstRoot != null)
+            {
+                elapsed += Time.deltaTime;
+                float normalized = Mathf.Clamp01(elapsed / duration);
+                float travel = 1f - Mathf.Pow(1f - normalized, 3f);
+                float pop = EaseOutBack(Mathf.Clamp01(normalized / 0.28f));
+                float settle = normalized <= 0.62f
+                    ? 1f
+                    : Mathf.Lerp(1f, 0.78f, Mathf.SmoothStep(0f, 1f, (normalized - 0.62f) / 0.38f));
+                float alpha = normalized <= 0.56f
+                    ? 1f
+                    : 1f - Mathf.SmoothStep(0f, 1f, (normalized - 0.56f) / 0.44f);
+                float lift = Mathf.Sin(normalized * Mathf.PI) * 0.07f;
+
+                for (int index = 0; index < CompletionStarCount; index++)
+                {
+                    Transform star = stars[index];
+                    if (star == null)
+                    {
+                        continue;
+                    }
+
+                    Vector2 direction = CompletionStarDirections[index].normalized;
+                    float starDistance = distance * CompletionStarDistanceMultipliers[index];
+                    star.localPosition = new Vector3(
+                        direction.x * starDistance * travel,
+                        (direction.y * starDistance * travel) + lift,
+                        0f);
+                    float scale = finalScales[index] * pop * settle;
+                    star.localScale = Vector3.one * scale;
+                    star.localRotation = Quaternion.Euler(
+                        0f,
+                        0f,
+                        CompletionStarRotations[index] + (direction.x * 12f * travel));
+
+                    Color color = renderers[index].color;
+                    color.a = alpha;
+                    renderers[index].color = color;
+                }
+
+                yield return null;
+            }
+
+            ActiveCompletionStarCount = Mathf.Max(
+                0,
+                ActiveCompletionStarCount - CompletionStarCount);
+            completionStarBurstRoots.Remove(burstRoot);
+            DestroyObject(burstRoot);
+        }
+
+        private static float EaseOutBack(float value)
+        {
+            float shifted = Mathf.Clamp01(value) - 1f;
+            return 1f + (2.70158f * shifted * shifted * shifted) +
+                   (1.70158f * shifted * shifted);
+        }
+
         private void CancelPendingTransfers()
         {
             StopAllCoroutines();
@@ -670,6 +876,7 @@ namespace MarbleSort.Gameplay.Receivers
 
         private void ClearViews()
         {
+            ClearCompletionStarBursts();
             boxViews.Clear();
             for (int index = laneRoots.Count - 1; index >= 0; index--)
             {
@@ -677,6 +884,18 @@ namespace MarbleSort.Gameplay.Receivers
             }
 
             laneRoots.Clear();
+            GeneratedLaneArtworkCount = 0;
+        }
+
+        private void ClearCompletionStarBursts()
+        {
+            for (int index = completionStarBurstRoots.Count - 1; index >= 0; index--)
+            {
+                DestroyObject(completionStarBurstRoots[index]);
+            }
+
+            completionStarBurstRoots.Clear();
+            ActiveCompletionStarCount = 0;
         }
 
         private void ClearLaneChildren(Transform laneRoot)
@@ -684,6 +903,11 @@ namespace MarbleSort.Gameplay.Receivers
             for (int index = laneRoot.childCount - 1; index >= 0; index--)
             {
                 Transform child = laneRoot.GetChild(index);
+                if (child.name == ReceiverLaneArtworkName)
+                {
+                    continue;
+                }
+
                 boxViews.Remove(GetBoxIdFromRoot(child.gameObject));
                 DestroyObject(child.gameObject);
             }
@@ -727,16 +951,16 @@ namespace MarbleSort.Gameplay.Receivers
             lidOpenDuration = Mathf.Max(0.01f, lidOpenDuration);
             lidCloseDuration = Mathf.Max(0.01f, lidCloseDuration);
             queueAdvanceDuration = Mathf.Max(0.01f, queueAdvanceDuration);
+            completionStarBurstDuration = Mathf.Max(0.1f, completionStarBurstDuration);
+            completionStarBurstDistance = Mathf.Max(0.1f, completionStarBurstDistance);
         }
 
         private sealed class ReceiverBoxRuntimeView
         {
-            private const float OpenLiftDistance = 0.38f;
-
             private readonly SpriteRenderer bodyRenderer;
             private readonly Transform lidLift;
-            private readonly Vector3 lidClosedLocalPosition;
             private readonly SpriteRenderer lidRenderer;
+            private readonly ReceiverArtwork artwork;
             private readonly GameObject[] capacityMarkers;
             private readonly Transform[] capacityTransforms;
 
@@ -746,6 +970,7 @@ namespace MarbleSort.Gameplay.Receivers
                 SpriteRenderer receiverBodyRenderer,
                 Transform receiverLidLift,
                 SpriteRenderer receiverLidRenderer,
+                ReceiverArtwork receiverArtwork,
                 GameObject[] markers,
                 Transform[] markerTransforms)
             {
@@ -753,10 +978,8 @@ namespace MarbleSort.Gameplay.Receivers
                 Body = body;
                 bodyRenderer = receiverBodyRenderer;
                 lidLift = receiverLidLift;
-                lidClosedLocalPosition = receiverLidLift == null
-                    ? Vector3.zero
-                    : receiverLidLift.localPosition;
                 lidRenderer = receiverLidRenderer;
+                artwork = receiverArtwork;
                 capacityMarkers = markers;
                 capacityTransforms = markerTransforms;
             }
@@ -786,19 +1009,18 @@ namespace MarbleSort.Gameplay.Receivers
                     return;
                 }
 
-                float liftAmount = 1f - Mathf.Pow(1f - openAmount, 3f);
-                lidLift.localPosition = lidClosedLocalPosition + (Vector3.up * (OpenLiftDistance * liftAmount));
+                lidLift.localPosition = Vector3.zero;
                 lidLift.localRotation = Quaternion.identity;
 
                 Color lidColor = lidRenderer.color;
-                lidColor.a = 1f - Mathf.InverseLerp(0.62f, 0.98f, openAmount);
+                lidColor.a = 1f - openAmount;
                 lidRenderer.color = lidColor;
-                lidRenderer.enabled = openAmount < 0.995f;
+                lidRenderer.enabled = openAmount < 0.999f;
 
                 if (bodyRenderer != null)
                 {
                     Color bodyColor = bodyRenderer.color;
-                    bodyColor.a = 1f;
+                    bodyColor.a = openAmount;
                     bodyRenderer.color = bodyColor;
                 }
             }
@@ -806,6 +1028,11 @@ namespace MarbleSort.Gameplay.Receivers
             public void SetFilledCount(int fillCount)
             {
                 int count = Mathf.Clamp(fillCount, 0, capacityMarkers.Length);
+                if (bodyRenderer != null)
+                {
+                    bodyRenderer.sprite = artwork.GetOpenFrame(count);
+                }
+
                 for (int index = 0; index < capacityMarkers.Length; index++)
                 {
                     capacityMarkers[index].SetActive(index < count);

@@ -43,7 +43,7 @@ namespace MarbleSort.Gameplay.Conveyor
         public bool IsTransitioning => transitioningMarble != null;
 
         public float RequiredChuteClearance =>
-            MarblePool.TransitMarbleDiameter + MarblePool.MinimumMarbleSeparation;
+            MarblePool.TransitCollisionDiameter + MarblePool.MinimumMarbleSeparation;
 
         public Vector3 ChuteExitWorldPosition =>
             transform.TransformPoint(new Vector3(0f, ChuteGateLocalY, 0f));

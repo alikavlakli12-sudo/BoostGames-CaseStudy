@@ -79,6 +79,8 @@ commands and the optional desktop smoke-build command are documented in
 ## Architecture and optimization
 
 - Physical marbles are prewarmed and pooled; conveyor marbles become kinematic logical occupants.
+- The board atomically reserves nine positions per tray and caps loose/reserved physics marbles at
+  36. A rejected tray stays intact and shows a local `Board Full` message until space is available.
 - One controller advances all 24 conveyor positions along an analytical stadium path.
 - Slot reservation prevents double occupancy, and receiver transfer remains event-driven.
 - Presentation meshes/materials are cached, while one particle system and one audio source serve

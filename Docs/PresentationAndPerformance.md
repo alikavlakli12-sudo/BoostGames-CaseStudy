@@ -36,6 +36,9 @@ existing runtime events. The visual scene can still be rebuilt deterministically
   canvas hierarchy.
 - Exposed top boxes use nine visible marble markers plus a subtle allocation-free pulse, making the
   valid interaction state readable without adding permanent arrows or hand overlays.
+- If a nine-marble release would exceed the 36-marble loose-board budget, that tray remains intact
+  and briefly displays `Board Full` directly over its artwork. The feedback object is prebuilt with
+  the tray and reuses its renderer on repeated taps.
 
 ## Feedback and audio
 
@@ -55,7 +58,7 @@ existing runtime events. The visual scene can still be rebuilt deterministically
 
 | Resource | Budget/behavior |
 | --- | --- |
-| Loose/conveyor marbles | 72 objects prewarmed; Level 5 cannot require a 73rd marble |
+| Marble actors | 72 prewarmed: 36 loose/reserved board marbles + 24 conveyor occupants + 4 receiver transfers + 8 hand-off reserves; stress test permits zero runtime expansion |
 | Conveyor positions | 24 deterministic logical slots |
 | Feedback particles | One system, maximum 160 live particles |
 | Feedback audio | One `AudioSource`, six prewarmed procedural clips |
@@ -65,9 +68,12 @@ existing runtime events. The visual scene can still be rebuilt deterministically
 | Target frame rate | 60 FPS |
 | Runtime diagnostics | Allocation-free rolling frame probe with FPS, worst-frame, and GC counters |
 
-The automated highest-load test builds Level 5 twice and verifies that marble count, mesh-cache
-count, particle system, and audio source remain unchanged. Rendering and interaction objects use
-shared materials and do not request real-time shadows.
+The automated highest-load checks build Level 4 twice and verify that marble count, mesh-cache
+count, particle system, and audio source remain unchanged. A separate dense-board test reserves
+the full 36-marble budget, verifies tray-local rejection and recovery, samples 120 steady-state
+frames with at least 30 simultaneously settled rigidbodies, checks the no-overlap invariant, and
+requires zero pool expansion. Rendering and interaction objects use shared materials and do not
+request real-time shadows.
 
 ## QA checklist
 

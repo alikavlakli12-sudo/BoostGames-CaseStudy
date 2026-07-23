@@ -4,6 +4,8 @@ This document maps the final repository to the Boost Games Developer Case Study 
 evaluation criteria. The mandatory deliverable is the GitHub-hosted Unity project; a standalone
 player is an additional smoke-test artifact and is not committed.
 
+Delivery readiness validation: **12/12 automated checks passed**.
+
 ## Requirements evidence
 
 | Brief requirement | Implementation evidence | Verification |
@@ -20,7 +22,7 @@ player is an additional smoke-test artifact and is not committed.
 | One JSON source and strict 1:3 ratio | Shared catalog loader/validator | Catalog and invalid-ratio tests |
 | Custom level editor | **Marble Sort > Level Catalog** | Safe-save, solver, and preview workflow |
 | At least 5 levels and wraparound | Five production levels in `levels.json` | Solver and session progression tests |
-| Physics/conveyor performance | Pooling, kinematic conveyor, cached presentation resources | Highest-load reuse test and runtime probe |
+| Physics/conveyor performance | 36-marble loose-board reservation cap, 72 prewarmed actors, kinematic conveyor, cached presentation resources | Dense-board benchmark, zero-growth assertion, highest-load reuse test, and runtime probe |
 | Professional Git delivery | Milestone branches and outcome-focused commits | Repository history and hygiene audit |
 
 ## Reproducible QA commands
@@ -39,7 +41,7 @@ UNITY="/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/MacOS/Unity
   -testResults /tmp/marblesort-editmode.xml \
   -logFile /tmp/marblesort-editmode.log
 
-"$UNITY" -batchmode -nographics -projectPath "$PWD/MarbleSort" \
+"$UNITY" -batchmode -projectPath "$PWD/MarbleSort" \
   -runTests -testPlatform PlayMode \
   -testResults /tmp/marblesort-playmode.xml \
   -logFile /tmp/marblesort-playmode.log
@@ -54,17 +56,18 @@ The optional smoke player is written to `MarbleSort/Builds/QA/` and remains igno
 
 ## Verification record
 
-Final local verification on 2026-07-17:
+Final local verification on 2026-07-23:
 
-- Delivery readiness: 12/12 checks passed.
-- EditMode: 45/45 tests passed.
-- PlayMode: 18/18 tests passed.
+- EditMode: 62/62 tests passed.
+- PlayMode: 31/31 tests passed with the Metal graphics device.
+- Level 5 receiver queues: no adjacent repeated colors, exact 1:3 color totals, and a verified
+  10-selection solution with 16/24 peak conveyor occupancy.
+- Dense-board benchmark: 120 frames at 59.9 average FPS, 23.68 ms worst frame, 31 peak loose
+  rigidbodies, full 36-marble projected budget, and zero pool expansions in the complete suite.
 - Desktop smoke build: succeeded as a portrait-windowed 64-bit universal macOS application
   (Apple Silicon and Intel).
 - Player boot: initialized Unity `6000.3.10f1`, PhysX, the Main scene, and all 5 validated levels
   without a runtime exception.
-- Repository history: no reachable oversized or accidental binary objects; largest tracked asset
-  is the 1.6 MB project background.
 
 ## Final manual gate
 

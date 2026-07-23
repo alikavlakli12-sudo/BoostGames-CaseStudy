@@ -24,6 +24,10 @@ This document converts the supplied case-study brief, screenshot, and gameplay r
 
 - Spawned marbles use dynamic 3D rigidbodies constrained to the gameplay plane.
 - Basin walls and sloped funnel surfaces keep loose marbles contained and guide them to the top-center conveyor entrance.
+- The upper board has a strict capacity of 36 loose or reserved marbles. A tray is claimed only
+  when all nine of its marbles fit inside that budget; conveyor and receiver marbles do not count.
+- A capacity-rejected tray remains intact and selectable and shows a short `Board Full` message
+  directly over that tray. The player can try it again after nine board positions become free.
 - The entrance admits at most one marble into one free logical conveyor slot at a time.
 - A marble stays in the basin if the required entrance slot is unavailable.
 - The same pooled actor switches from dynamic physics to a kinematic conveyor mode during transfer and returns to the pool after collection.

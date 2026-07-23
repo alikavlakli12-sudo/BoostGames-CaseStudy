@@ -44,3 +44,9 @@ Thumbs.db
 
 # Local analysis artifacts used to prepare the case study
 /tmp/
+
+# Unity test-runner and editor recovery scenes
+/MarbleSort/Assets/InitTestScene*.unity
+/MarbleSort/Assets/InitTestScene*.unity.meta
+/MarbleSort/Assets/_Recovery.meta
+/MarbleSort/Assets/_Recovery/
